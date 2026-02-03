@@ -1,0 +1,11 @@
+PyYAML>=6.0.3
+lxml>=6.0.2
+
+langgraph>=1.0.3
+langchain-core>=1.0.4
+langchain-ollama>=1.0.0
+langchain-openai>=1.0.3
+langchain-chroma>=1.0.0
+python-dotenv>=1.2.1
+
+biopython>=1.86
