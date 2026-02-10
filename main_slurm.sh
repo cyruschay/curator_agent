@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu
 #SBATCH --output=logs/slurm-%j_output.txt    # Standard output file (%j expands to jobID)
 #SBATCH --error=logs/slurm-%j_error.txt      # Standard error file
-#SBATCH --time=02:00:00           # Time limit (HH:MM:SS)
+#SBATCH --time=48:00:00           # Time limit (HH:MM:SS)
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=28
 #SBATCH --mem=100567M      # Memory per node
@@ -15,6 +15,7 @@ module load ollama/0.13.5
 # Set environmental variables
 export OLLAMA_FLASH_ATTENTION=1
 export OLLAMA_MAX_LOADED_MODELS=2
+export OLLAMA_KEEP_ALIVE=30m
 export OLLAMA_CONTEXT_LENGTH=20000
 
 # Set conda environment
