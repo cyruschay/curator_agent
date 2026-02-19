@@ -1,1 +1,0 @@
-{"pmid": "41023053", "processing_id": "PID:0000011", "provenance": {"ingest_hash": "41d47ec023fbdf058b61dd9b251744262bec553fb4a3767c14231fb858321791", "article_index": 0, "batch_number": 1, "batch_offset": 0}, "messages": [{"role": "system", "content": "You are a biomedical text mining agent."}, {"role": "ai", "content": "Node_n05. ERROR: Empty LLM content output."}]}
