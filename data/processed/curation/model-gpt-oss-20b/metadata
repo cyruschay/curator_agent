@@ -1,0 +1,26 @@
+ollama_models:
+  reasoning_model: "gpt-oss:20b"
+  mini_model: "gpt-oss:20b"
+  nano_model: "gpt-oss:20b"
+
+ollama_params:
+  reasoning_model:
+    reasoning: true
+    num_predict: 10240
+    temperature: 0.15
+    top_p: 0.9
+    top_k: 40
+    repeat_penalty: 1.25
+    repeat_last_n: 256
+    seed: 2026
+    extra: {}
+  mini_model:
+    reasoning: true
+    num_predict: 4096
+    temperature: 0.4
+    extra: {}
+  nano_model:
+    reasoning: false
+    num_predict: 2048
+    temperature: 0.2
+    extra: {}

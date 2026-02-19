@@ -1,0 +1,6 @@
+directory, model, temperature, repeat_penalty
+gpt-oss-20b-debug-0-135, gpt-oss-20b, 0.0, 1.35
+gpt-oss-20b-debug-0-150, gpt-oss-20b, 0.0, 1.50
+gpt-oss-20b-debug-4-150, gpt-oss-20b, 0.4, 1.50
+gpt-oss-20b-debug-4-175, gpt-oss-20b, 0.4, 1.75
+gpt-oss-20b-debug-6-135, gpt-oss-20b, 0.6, 1.35
