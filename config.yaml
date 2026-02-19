@@ -27,5 +27,5 @@ ollama_params:
     extra: {}
 
 paths:
-  input_abstracts: "abstracts_3001-4000.jsonl"
-  curation_output_dir: "gpt-oss-20b-prod-0.15-0.9-40-1.25-256-3001-4000"
+  input_abstracts: "abstracts_0001-1000.jsonl"
+  curation_output_dir: "gpt-oss-20b-prod-0.15-0.9-40-1.25-256-0001-1000"

@@ -1,0 +1,142 @@
+{
+    "pid": "PID:0000008",
+    "pmid": "40635354",
+    "pmcid": "12379856",
+    "title": "Altered Glycosylation of PSA in Prostate Cancer Tissue.",
+    "screening": {
+        "decision": "RELEVANT",
+        "reason": "The study identifies PSA glycoforms that differ between prostate cancer and benign tissue, indicating a disease-associated glycan biomarker. However, the abstract lacks detailed quantitative performance metrics or specific glycan structures, so full text is needed for complete evaluation.",
+        "study_type": "case-control",
+        "confidence": 0.41103302884703774
+    },
+    "flags": {
+        "has_pmcid": true,
+        "can_use_fulltext": true,
+        "needs_fulltext": true,
+        "discard": false,
+        "text_mode": "fulltext",
+        "fulltext_license": "https://creativecommons.org/licenses/by/4.0/"
+    },
+    "provenance": {
+        "ingest_hash": "c54a978512ac04125424e246bdeeb4df19c974d73c888cba0cd1174f6c98b0f8",
+        "article_index": 7,
+        "batch_number": 1,
+        "batch_offset": 7
+    },
+    "entities": [
+        {
+            "glycan_structure_term": "LacdiNAc",
+            "non_structural_descriptor": null,
+            "alignment": "substructure",
+            "aglycon": "Asn",
+            "chemical_structure": null,
+            "evidence_sentence": "Many of these studies have utilized lectins from Wisteria floribunda (WFA) [22, 34, 35, 36] and Maackia amurensis (MAL) [37, 38, 39], recognizing carbohydrate epitopes like LacdiNAc/terminal GalNAc and α2,3‐sialic acid, respectively [30, 40, 41]."
+        },
+        {
+            "glycan_structure_term": "α2-3 sialylation",
+            "non_structural_descriptor": null,
+            "alignment": "substructure",
+            "aglycon": "Asn",
+            "chemical_structure": null,
+            "evidence_sentence": "Many of these studies have utilized lectins from Wisteria floribunda (WFA) [22, 34, 35, 36] and Maackia amurensis (MAL) [37, 38, 39], recognizing carbohydrate epitopes like LacdiNAc/terminal GalNAc and α2,3‐sialic acid, respectively [30, 40, 41]."
+        },
+        {
+            "glycan_structure_term": "GlcNAc",
+            "non_structural_descriptor": null,
+            "alignment": "substructure",
+            "aglycon": "Asn",
+            "chemical_structure": null,
+            "evidence_sentence": "WGAsucc and VVA recognize epitopes with GlcNAc and terminal GalNAc, respectively [30, 46, 47]."
+        },
+        {
+            "glycan_structure_term": "terminal GalNAc",
+            "non_structural_descriptor": null,
+            "alignment": "substructure",
+            "aglycon": "Asn",
+            "chemical_structure": null,
+            "evidence_sentence": "WGAsucc and VVA recognize epitopes with GlcNAc and terminal GalNAc, respectively [30, 46, 47]."
+        }
+    ],
+    "relations": [
+        {
+            "glycan_name": "terminal GalNAc",
+            "glycan_mapped_name": "terminal N-acetylgalactosamine",
+            "glycan_id": "GSD:cd483672-3ab7-5734-a40a-b489a133c301",
+            "glycan_metadata": null,
+            "glycan_entity_metadata": {
+                "glycan_structure_term": "terminal GalNAc",
+                "non_structural_descriptor": null,
+                "alignment": "substructure",
+                "aglycon": "Asn"
+            },
+            "disease_name": "prostate cancer",
+            "disease_mapped_name": "Prostate cancer",
+            "disease_id": "DOID:10283",
+            "disease_annotation": null,
+            "treatment_annotation": null,
+            "specimen": {
+                "original": "prostate cancer tissue",
+                "mapped_name": null,
+                "mapped_id": null,
+                "category": "other",
+                "ontology": null
+            },
+            "species_name": "human",
+            "species_mapped_name": "Homo sapiens",
+            "species_id": "9606",
+            "protein_name": "PSA",
+            "protein_mapped_name": "Prostate-specific antigen",
+            "protein_id": "P01023",
+            "biomarker_type": "diagnostic",
+            "direction": "increased",
+            "metrics": [
+                {
+                    "name": "p-value WGAsucc",
+                    "value": 0.0001,
+                    "raw": "p < 10−4"
+                },
+                {
+                    "name": "p-value VVA",
+                    "value": 1e-08,
+                    "raw": "p < 10−8"
+                }
+            ],
+            "method_names": [
+                "in situ proximity ligation assay (PLA)",
+                "lectin staining",
+                "tissue microarray (TMA)"
+            ],
+            "evidence_sentences": [
+                {
+                    "sentence": "In a larger TMA with samples from 162 patients, PSA‐glycoforms detected by succinylated wheat germ (WGAsucc) and Vicia villosa (VVA) lectins were enriched in cancerous tissues as compared to adjacent benign tissues from the same patients (p < 10−4 for both, Kruskal–Wallis H test), although strong total PSA staining was more often found in benign tissues (p = 6*10−14).",
+                    "section": "ABSTRACT",
+                    "sentence_index": 7
+                },
+                {
+                    "sentence": "Especially Erythrina cristagalli (ECL), succinylated wheat germ (WGAsucc), Griffonia simplicifolia I (GSL I) and Vicia villosa (VVA) lectins showed no or weak staining of PSA in benign samples, while several cancer samples showed strong staining (p < 0.05 for all).",
+                    "section": "RESULTS",
+                    "sentence_index": 93
+                },
+                {
+                    "sentence": "Contrary to ECL, strong staining (score 3) of WGAsucc and VVA reactive PSA was undetectable in adjacent benign tissues, while in 5.0% and 6.9% of cancerous tissues strong staining was observed for WGAsucc and VVA reactive PSA, respectively.",
+                    "section": "RESULTS",
+                    "sentence_index": 100
+                },
+                {
+                    "sentence": "Weaker staining was observed in some benign samples, but the overall staining of WGAsucc and VVA reactive PSA was strongly associated with cancer as compared to adjacent benign tissues (p < 10−4 and p < 10−8, respectively) (Figure 3).",
+                    "section": "RESULTS",
+                    "sentence_index": 101
+                }
+            ],
+            "evidence_score": 0.85,
+            "evidence_label": "strong",
+            "score_breakdown": {
+                "section_quality": "+0.30 (Results/Discussion)",
+                "strong_claims": "+0.20",
+                "multiple_evidence": "+0.15 (4 sentences, 2 sections)",
+                "quantitative_metrics": "+0.10",
+                "sample_size": "+0.10 (n=162)"
+            }
+        }
+    ]
+}

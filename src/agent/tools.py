@@ -272,7 +272,7 @@ def onto_doid_tool(entities: List[str]) -> str:
     if not entities:
         return json.dumps({"results": [], "message": "No entities provided"})
 
-    # Initialize exact match dictionary only (fast)
+    # Initialize exact match dictionary
     if not _doid_exact_match_dict:
         _init_doid_exact_match_dict()
     
