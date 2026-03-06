@@ -96,14 +96,9 @@ if not list_path.exists():
 
 
 # Models
-
-
-
-# Model params configured in config.yaml
-reasoning_params = OllamaModelParams.from_config(config_data, "reasoning_model").to_kwargs()
 REASONING_MODEL = ChatOllama(
     model=config_data["ollama_models"]["reasoning_model"],
-    **reasoning_params,
+    **OllamaModelParams.from_config(config_data, "reasoning_model").to_kwargs(),
 )
 MINI_MODEL = ChatOllama(
     model=config_data["ollama_models"]["mini_model"],
@@ -114,8 +109,7 @@ NANO_MODEL = ChatOllama(
     model=config_data["ollama_models"]["nano_model"],
     **OllamaModelParams.from_config(config_data, "nano_model").to_kwargs(),
 )
-#MINI_MODEL = ChatOllama(model=config_data["ollama_models"]["mini_model"], temperature=0)
-#NANO_MODEL = ChatOllama(model=config_data["ollama_models"]["nano_model"], temperature=0)
+
 
 # Safety limits (avoid runaway generations / context truncation)
 NER_MAX_INPUT_CHARS = 1500000
@@ -128,6 +122,174 @@ mapper_model = REASONING_MODEL.bind_tools(ontology_mapping_tools)
 validator_model = REASONING_MODEL
 mini_model = MINI_MODEL
 nano_model = NANO_MODEL
+
+
+# -----------------------------------------------------------------------------
+# Shared Helpers (dict extraction, evidence resolution, post-processing)
+# -----------------------------------------------------------------------------
+
+# Field name lists used by _pick / _pick_first to reduce verbose .get() chains
+_RELATION_KEYS = [
+    "glycan_name", "glycan_mapped_name", "glycan_id", "glycan_metadata",
+    "disease_name", "disease_mapped_name", "disease_id",
+    "disease_annotation", "treatment_annotation",
+    "specimen",
+    "species_name", "species_mapped_name", "species_id",
+    "protein_name", "protein_mapped_name", "protein_id",
+    "biomarker_type", "direction",
+]
+
+_ENTITY_META_KEYS = [
+    "glycan_structure_term", "non_structural_descriptor", "alignment", "aglycon",
+]
+
+_ENTITY_EXPORT_KEYS = [
+    "glycan_structure_term", "non_structural_descriptor",
+    "alignment", "aglycon", "chemical_structure", "evidence_sentence",
+]
+
+
+def _pick(src: Dict[str, Any], keys: Sequence[str]) -> Dict[str, Any]:
+    """Extract a subset of keys from *src*."""
+    return {k: src.get(k) for k in keys}
+
+
+def _pick_first(
+    primary: Dict[str, Any],
+    fallback: Dict[str, Any],
+    keys: Sequence[str],
+) -> Dict[str, Any]:
+    """For each key, use *primary* value if truthy, otherwise *fallback*."""
+    return {k: primary.get(k) or fallback.get(k) for k in keys}
+
+
+def _build_locator_index(
+    corpus_indexed: Dict[str, Any],
+) -> Dict[int, Dict[str, Any]]:
+    """Map ``global_index`` → corpus entry for fast sentence lookup."""
+    return {
+        entry["global_index"]: entry
+        for entry in corpus_indexed.values()
+        if isinstance(entry.get("global_index"), int)
+    }
+
+
+def _resolve_evidence(
+    evidence_locators: list,
+    corpus_indexed: Dict[str, Any],
+    locator_by_index: Dict[int, Dict[str, Any]],
+    *,
+    relation_idx: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Resolve evidence locators → ``[{sentence, section, locator}, ...]``.
+
+    Skips non-dict entries (corrupt data from LLM) with a warning.
+    Mutates each *loc* in-place to back-fill ``section_id`` / ``locator_key``.
+    """
+    results: List[Dict[str, Any]] = []
+    for loc in evidence_locators:
+        if not isinstance(loc, dict):
+            if relation_idx is not None:
+                _print_msg("WARN", f"Relation {relation_idx}: skipping non-dict evidence locator")
+            continue
+
+        sentence_text = ""
+        section_id = loc.get("section_id", "")
+        locator_key = loc.get("locator_key")
+
+        if locator_key and locator_key in corpus_indexed:
+            entry = corpus_indexed[locator_key]
+            sentence_text = entry.get("sentence", "")
+            section_id = entry.get("section", section_id)
+            loc.setdefault("section_id", section_id)
+        else:
+            global_idx = loc.get("global_index", loc.get("sentence_index"))
+            if isinstance(global_idx, int):
+                entry = locator_by_index.get(global_idx)
+                if entry:
+                    sentence_text = entry.get("sentence", "")
+                    section_id = entry.get("section", section_id)
+                    loc.setdefault("section_id", section_id)
+                    loc.setdefault("locator_key", entry.get("locator_key"))
+
+        if sentence_text:
+            results.append({"sentence": sentence_text, "section": section_id, "locator": loc})
+    return results
+
+
+def _build_evidence_locators(
+    sentence_indexes: list,
+    index_lookup: Dict[int, Tuple[str, Dict[str, Any]]],
+) -> Tuple[List[Dict[str, Any]], List[str], List[int]]:
+    """Convert raw sentence indexes → ``(locators, evidence_texts, normalized_indexes)``."""
+    locators: List[Dict[str, Any]] = []
+    texts: List[str] = []
+    normalized: List[int] = []
+    for s_idx in sentence_indexes:
+        try:
+            s_idx_int = int(s_idx)
+        except (TypeError, ValueError):
+            continue
+        lookup = index_lookup.get(s_idx_int)
+        if not lookup:
+            continue
+        locator_key, loc = lookup
+        locators.append({
+            "section_id": loc.get("section", ""),
+            "sentence_index": s_idx_int,
+            "global_index": s_idx_int,
+            "char_start": loc.get("char_start", 0),
+            "char_end": loc.get("char_end", 0),
+            "locator_key": locator_key,
+        })
+        texts.append(loc.get("sentence", ""))
+        normalized.append(s_idx_int)
+    return locators, texts, normalized
+
+
+def _postprocess_relations(
+    extracted: List[Dict[str, Any]],
+    index_lookup: Dict[int, Tuple[str, Dict[str, Any]]],
+) -> None:
+    """In-place: attach evidence locators, normalize methods, detect hedging."""
+    for rel in extracted:
+        locators, texts, normalized = _build_evidence_locators(
+            rel.get("evidence_sentence_indexes", []), index_lookup,
+        )
+        rel["evidence_locators"] = locators
+        if normalized:
+            rel["evidence_sentence_indexes"] = normalized
+
+        rel["method_names"] = normalize_method_names(rel.get("method_names") or [])
+        rel["metrics"] = [
+            {"name": m.get("name", ""), "value": m.get("value"), "raw": m.get("raw")}
+            for m in rel.get("metrics", [])
+        ]
+
+        if "negated_or_hedged" not in rel:
+            ev_txt = " ".join(t for t in texts if t)
+            if ev_txt:
+                hedges = negation_hedge_detector(ev_txt)
+                rel["negated_or_hedged"] = bool(hedges.get("negated") or hedges.get("hedged"))
+            else:
+                rel["negated_or_hedged"] = False
+
+
+def _build_node_output(
+    base: Dict[str, Any],
+    messages: Optional[List] = None,
+    reasonings: Optional[List] = None,
+    llm_logs: Optional[List] = None,
+) -> Dict[str, Any]:
+    """Attach optional message / reasoning / log lists to a node output dict."""
+    if messages:
+        base["messages"] = messages
+    if reasonings:
+        base["reasonings"] = reasonings
+    if llm_logs:
+        base["llm_logs"] = llm_logs
+    return base
+
 
 # -----------------------------------------------------------------------------
 # Nodes
@@ -143,13 +305,12 @@ def node_n01_screener(state: AgentState) -> AgentState:
     
     # Handle missing abstract
     if abstract is None or abstract.strip() == "":
-        new_messages = [AIMessage(content="Node_n01. Missing abstract text for screening.")]
         node_n01_output = {
             "screening": {
                 "decision": "IRRELEVANT",
                 "reason": "No abstract text provided.",
             },
-            "messages": new_messages
+            "messages": [AIMessage(content="Node_n01. Missing abstract text for screening.")]
         }
         return node_n01_output
     
@@ -161,6 +322,7 @@ def node_n01_screener(state: AgentState) -> AgentState:
     sm = SystemMessage(content=SCREENING_SYS_PROMPT)
     hm = HumanMessage(content=f"Title:\n{title}\n\nAbstract:\n{abstract}")
     resp = _invoke_llm(sm, hm, screening_model)
+    
     _print_llm_metadata(resp)
     llm_logs = [_llm_log_entry(resp, "n01")]
     new_messages, new_reasonings, output_json = _parse_llm_resp(resp=resp, node_id="n01")
@@ -175,19 +337,17 @@ def node_n01_screener(state: AgentState) -> AgentState:
     reason = output_json.get("reasoning", "[ERROR]")
     study_type = output_json.get("study_type", "[ERROR]")
     needs_fulltext = output_json.get("needs_fulltext", False)
-    
-    # build node output: screening
-    screening = {
-        "decision": decision,
-        "reason": reason,
-        "study_type": study_type,
-        "flags": {"needs_fulltext": bool(needs_fulltext)},
-        "confidence": float(score),
-    }
+
     
     # build output
     node_n01_output = {
-        "screening": screening,
+        "screening": {
+            "decision": decision,
+            "reason": reason,
+            "study_type": study_type,
+            "flags": {"needs_fulltext": bool(needs_fulltext)},
+            "confidence": float(score),
+        },
         "flags": {"needs_fulltext": bool(needs_fulltext)},
         "tags": {"lexicon_hits": features},
         "messages": new_messages, "reasonings": new_reasonings,
@@ -263,8 +423,8 @@ def node_n03_fulltext_ner(state: AgentState) -> AgentState:
     selected_titles = []
     filt_sm = SystemMessage(content=(SECTION_FILTER_SYS_PROMPT))
     filt_hm = HumanMessage(content=json.dumps({"section_titles": section_titles}))
-    
     filt_resp = _invoke_llm(filt_sm, filt_hm, nano_model)
+    
     _print_llm_metadata(filt_resp)
     llm_logs: List[Dict[str, Any]] = [_llm_log_entry(filt_resp, "n03_section_filter")]
     filt_messages, filt_reasonings, filt_json = _parse_llm_resp(filt_resp, node_id="n03_section_filter")
@@ -570,59 +730,8 @@ def node_n04_fulltext_re(state: AgentState) -> AgentState:
         if isinstance(global_idx, int):
             index_lookup[global_idx] = (key, loc)
 
-    # Post-process: convert evidence_sentence_indexes to evidence_locators
-    for rel in extracted:
-        sentence_indexes = rel.get("evidence_sentence_indexes", [])
-        evidence_locators: List[Dict[str, Any]] = []
-        evidence_texts: List[str] = []
-        normalized_indexes: List[int] = []
-        
-        for s_idx in sentence_indexes:
-            try:
-                s_idx_int = int(s_idx)
-            except (TypeError, ValueError):
-                continue
-
-            lookup = index_lookup.get(s_idx_int)
-            if not lookup:
-                continue
-
-            locator_key, loc = lookup
-            evidence_locators.append({
-                "section_id": loc.get("section", ""),
-                "sentence_index": s_idx_int,
-                "global_index": s_idx_int,
-                "char_start": loc.get("char_start", 0),
-                "char_end": loc.get("char_end", 0),
-                "locator_key": locator_key,
-            })
-
-            evidence_texts.append(loc.get("sentence", ""))
-            normalized_indexes.append(s_idx_int)
-        
-        rel["evidence_locators"] = evidence_locators
-        if normalized_indexes:
-            rel["evidence_sentence_indexes"] = normalized_indexes
-        
-        # Normalize method names
-        names = normalize_method_names(rel.get("method_names") or [])
-        rel["method_names"] = names
-        
-        # Metrics already parsed by LLM; convert to Metric TypedDict shape if needed
-        metrics = rel.get("metrics", [])
-        rel["metrics"] = [
-            {"name": m.get("name", ""), "value": m.get("value"), "raw": m.get("raw")}
-            for m in metrics
-        ]
-        
-        # Detect negation/hedging if not already set by LLM
-        if "negated_or_hedged" not in rel:
-            ev_txt = " ".join(text for text in evidence_texts if text)
-            if ev_txt:
-                hedges = negation_hedge_detector(ev_txt)
-                rel["negated_or_hedged"] = bool(hedges.get("negated") or hedges.get("hedged"))
-            else:
-                rel["negated_or_hedged"] = False
+    # Post-process: build evidence locators, normalize methods, detect hedging
+    _postprocess_relations(extracted, index_lookup)
     
     cands = state.get("candidates", {}) or {}
     cands["relations"] = extracted
@@ -709,7 +818,7 @@ def node_n04a_abstract_re(state: AgentState) -> AgentState:
         re_messages.append(AIMessage(content="Node_n04a. ERROR: Missing 'relations' in LLM output"))
         extracted = []
     
-    _print_msg("INFO", f"Extracted {len(extracted)} relations") ###################################################################
+    _print_msg("INFO", f"Extracted {len(extracted)} relations")
     
     index_lookup: Dict[int, Tuple[str, Dict[str, Any]]] = {}
     for key, loc in abstract_indexed.items():
@@ -717,58 +826,8 @@ def node_n04a_abstract_re(state: AgentState) -> AgentState:
         if isinstance(global_idx, int):
             index_lookup[global_idx] = (key, loc)
 
-    # Post-process: convert evidence_sentence_indexes to evidence_locators
-    for rel_idx, rel in enumerate(extracted):
-        sentence_indexes = rel.get("evidence_sentence_indexes", [])
-        evidence_locators: List[Dict[str, Any]] = []
-        evidence_texts: List[str] = []
-        normalized_indexes: List[int] = []
-        
-        for s_idx in sentence_indexes:
-            try:
-                s_idx_int = int(s_idx)
-            except (TypeError, ValueError):
-                continue
-
-            lookup = index_lookup.get(s_idx_int)
-            if not lookup:
-                continue
-
-            locator_key, loc = lookup
-            evidence_locators.append({
-                "section_id": loc.get("section", ""),
-                "sentence_index": s_idx_int,
-                "global_index": s_idx_int,
-                "char_start": loc.get("char_start", 0),
-                "char_end": loc.get("char_end", 0),
-                "locator_key": locator_key,
-            })
-            evidence_texts.append(loc.get("sentence", ""))
-            normalized_indexes.append(s_idx_int)
-        
-        rel["evidence_locators"] = evidence_locators
-        if normalized_indexes:
-            rel["evidence_sentence_indexes"] = normalized_indexes
-                    
-        # Normalize method names
-        names = normalize_method_names(rel.get("method_names") or [])
-        rel["method_names"] = names
-                
-        # Metrics
-        metrics = rel.get("metrics", [])
-        rel["metrics"] = [
-            {"name": m.get("name", ""), "value": m.get("value"), "raw": m.get("raw")}
-            for m in metrics
-        ]
-                
-        # Negation/hedging detection
-        if "negated_or_hedged" not in rel:
-            ev_txt = " ".join(text for text in evidence_texts if text)
-            if ev_txt:
-                hedges = negation_hedge_detector(ev_txt)
-                rel["negated_or_hedged"] = bool(hedges.get("negated") or hedges.get("hedged"))
-            else:
-                rel["negated_or_hedged"] = False
+    # Post-process: build evidence locators, normalize methods, detect hedging
+    _postprocess_relations(extracted, index_lookup)
         
     cands = state.get("candidates", {}) or {}
     cands["relations"] = extracted
@@ -1046,40 +1105,25 @@ def node_n05_mapper(state: AgentState) -> AgentState:
         
         # Return only the mapped relations, not the message history
         # This prevents token bloat in subsequent nodes
-        node_output: Dict[str, Any] = {"mapped": {"relations": mapped}}
-        if new_messages:
-            node_output["messages"] = new_messages
-        if new_reasonings:
-            node_output["reasonings"] = new_reasonings
-        if llm_logs:
-            node_output["llm_logs"] = llm_logs
-        return node_output
+        return _build_node_output(
+            {"mapped": {"relations": mapped}}, new_messages, new_reasonings, llm_logs,
+        )
     
     except json.JSONDecodeError as e:
         print(f"[N05] JSON parsing error: {e}")
         new_messages.append(AIMessage(content=f"Node_n05. ERROR: JSON parse failure {e}"))
         mapped = _fallback_relations(f"Mapping failed: JSON parse error - {str(e)}")
-        node_output = {"mapped": {"relations": mapped}}
-        if new_messages:
-            node_output["messages"] = new_messages
-        if new_reasonings:
-            node_output["reasonings"] = new_reasonings
-        if llm_logs:
-            node_output["llm_logs"] = llm_logs
-        return node_output
+        return _build_node_output(
+            {"mapped": {"relations": mapped}}, new_messages, new_reasonings, llm_logs,
+        )
     
     except Exception as e:
         print(f"[N05] Mapper error: {e}")
         new_messages.append(AIMessage(content=f"Node_n05. ERROR: {e}"))
         mapped = _fallback_relations(f"Mapping failed: {str(e)}")
-        node_output = {"mapped": {"relations": mapped}}
-        if new_messages:
-            node_output["messages"] = new_messages
-        if new_reasonings:
-            node_output["reasonings"] = new_reasonings
-        if llm_logs:
-            node_output["llm_logs"] = llm_logs
-        return node_output
+        return _build_node_output(
+            {"mapped": {"relations": mapped}}, new_messages, new_reasonings, llm_logs,
+        )
 
 # N06 — Validate & Refine
 def node_n06_validate_refine(state: AgentState) -> AgentState:
@@ -1096,13 +1140,8 @@ def node_n06_validate_refine(state: AgentState) -> AgentState:
     doc = state.get("doc", {})
     corpus_indexed = state.get("corpus_indexed", {})
     mapped = state.get("mapped", {}).get("relations", []) or []
+    locator_by_index = _build_locator_index(corpus_indexed)
 
-    locator_by_index: Dict[int, Dict[str, Any]] = {}
-    for key, entry in corpus_indexed.items():
-        global_idx = entry.get("global_index")
-        if isinstance(global_idx, int):
-            locator_by_index[int(global_idx)] = entry
-    
     new_messages: List[BaseMessage] = []
     new_reasonings: List[BaseMessage] = []
     llm_logs: List[Dict[str, Any]] = []
@@ -1115,63 +1154,30 @@ def node_n06_validate_refine(state: AgentState) -> AgentState:
             "loop_step": 0,
             "schema_status": "valid",
         }
-    
-    # Process each relation
+
     refined_relations: List[Dict[str, Any]] = []
     new_violations: List[Dict[str, Any]] = []
-    
+
     for idx, rel in enumerate(mapped):
-        # Fetch evidence sentences
-        evidence_locators = rel.get("evidence_locators", [])
-        evidence_sentences = []
-        
-        for loc in evidence_locators:
-            sentence_text = ""
-            locator_key = loc.get("locator_key")
+        # Resolve evidence locators → sentence strings
+        evidence_data = _resolve_evidence(
+            rel.get("evidence_locators", []),
+            corpus_indexed, locator_by_index, relation_idx=idx,
+        )
+        evidence_sentences = [ev["sentence"] for ev in evidence_data]
 
-            if locator_key and locator_key in corpus_indexed:
-                entry = corpus_indexed[locator_key]
-                sentence_text = entry.get("sentence", "")
-                loc.setdefault("section_id", entry.get("section", ""))
-            else:
-                global_idx = loc.get("global_index", loc.get("sentence_index"))
-                if isinstance(global_idx, int):
-                    entry = locator_by_index.get(int(global_idx))
-                    if entry:
-                        sentence_text = entry.get("sentence", "")
-                        loc.setdefault("section_id", entry.get("section", ""))
-                        loc.setdefault("locator_key", entry.get("locator_key"))
-
-            if sentence_text:
-                evidence_sentences.append(sentence_text)
-        
-        # Prepare context for LLM
-        specimen_info = rel.get("specimen") or {}
+        # Prepare context for LLM validation
         validation_context = {
             "relation_index": idx,
-            "glycan_name": rel.get("glycan_name"),
-            "glycan_mapped_name": rel.get("glycan_mapped_name"),
+            **_pick(rel, _RELATION_KEYS),
             "glycan_id": rel.get("glycan_id") or "unmapped",
-            "glycan_metadata": rel.get("glycan_metadata"),
-            "disease_name": rel.get("disease_name"),
-            "disease_mapped_name": rel.get("disease_mapped_name"),
             "disease_id": rel.get("disease_id") or "unmapped",
-            "disease_annotation": rel.get("disease_annotation"),
-            "treatment_annotation": rel.get("treatment_annotation"),
-            "specimen": specimen_info,
-            "species_name": rel.get("species_name"),
-            "species_mapped_name": rel.get("species_mapped_name"),
-            "species_id": rel.get("species_id"),
-            "protein_name": rel.get("protein_name"),
-            "protein_mapped_name": rel.get("protein_mapped_name"),
-            "protein_id": rel.get("protein_id"),
-            "biomarker_type": rel.get("biomarker_type"),
-            "direction": rel.get("direction"),
+            "specimen": rel.get("specimen") or {},
             "metrics": rel.get("metrics", []),
             "method_names": rel.get("method_names", []),
             "evidence_sentences": evidence_sentences,
             "title": doc.get("title", ""),
-            "abstract": doc.get("abstract", "")[:4000]  # First 4000 chars for context
+            "abstract": (doc.get("abstract") or "")[:4000],
         }
         
         sm = SystemMessage(content=VALIDATION_SYS_PROMPT)
@@ -1209,32 +1215,15 @@ def node_n06_validate_refine(state: AgentState) -> AgentState:
                 continue
             
             elif action == "split":
-                # Split into multiple biomarkers
                 split_biomarkers = val_rel.get("split_biomarkers", [])
                 if split_biomarkers:
                     for split_rel in split_biomarkers:
-                        # Preserve original fields, update glycan
                         refined_rel = deepcopy(rel)
-                        refined_rel["glycan_name"] = split_rel.get("glycan_name") or rel.get("glycan_name")
-                        refined_rel["glycan_mapped_name"] = split_rel.get("glycan_mapped_name") or rel.get("glycan_mapped_name")
-                        refined_rel["glycan_id"] = split_rel.get("glycan_id") or rel.get("glycan_id")
-                        refined_rel["disease_name"] = split_rel.get("disease_name") or rel.get("disease_name")
-                        refined_rel["disease_mapped_name"] = split_rel.get("disease_mapped_name") or rel.get("disease_mapped_name")
-                        refined_rel["disease_id"] = split_rel.get("disease_id") or rel.get("disease_id")
-                        refined_rel["disease_annotation"] = split_rel.get("disease_annotation") or rel.get("disease_annotation")
-                        refined_rel["treatment_annotation"] = split_rel.get("treatment_annotation") or rel.get("treatment_annotation")
+                        refined_rel.update(_pick_first(split_rel, rel, _RELATION_KEYS))
                         if split_rel.get("specimen") is not None:
-                            refined_rel["specimen"] = split_rel.get("specimen")
-                        refined_rel["species_name"] = split_rel.get("species_name") or rel.get("species_name")
-                        refined_rel["species_mapped_name"] = split_rel.get("species_mapped_name") or rel.get("species_mapped_name")
-                        refined_rel["species_id"] = split_rel.get("species_id") or rel.get("species_id")
-                        refined_rel["protein_name"] = split_rel.get("protein_name") or rel.get("protein_name")
-                        refined_rel["protein_mapped_name"] = split_rel.get("protein_mapped_name") or rel.get("protein_mapped_name")
-                        refined_rel["protein_id"] = split_rel.get("protein_id") or rel.get("protein_id")
-                        # Note: If glycan name changed, glycan_id might be null - will need remapping
+                            refined_rel["specimen"] = split_rel["specimen"]
                         refined_relations.append(refined_rel)
                 else:
-                    # Fallback: keep original
                     refined_relations.append(rel)
             
             elif action == "fix":
@@ -1274,20 +1263,16 @@ def node_n06_validate_refine(state: AgentState) -> AgentState:
     
     _print_msg("INFO", f"Validated {len(mapped)} / Refined {len(refined_relations)} / Final {len(deduped)}")
     
-    node_output = {
-        "validated": {"relations": refined_relations},  # Before dedup, with validation details
-        "cleaned": {"relations": deduped},  # After dedup, ready for scoring
-        "violations": new_violations,
-        "loop_step": loop_step + 1,
-        "schema_status": schema_status,
-    }
-    if new_messages:
-        node_output["messages"] = new_messages
-    if new_reasonings:
-        node_output["reasonings"] = new_reasonings
-    if llm_logs:
-        node_output["llm_logs"] = llm_logs
-    return node_output
+    return _build_node_output(
+        {
+            "validated": {"relations": refined_relations},
+            "cleaned": {"relations": deduped},
+            "violations": new_violations,
+            "loop_step": loop_step + 1,
+            "schema_status": schema_status,
+        },
+        new_messages, new_reasonings, llm_logs,
+    )
 
 # N07 — Evidence Scorer
 def node_n07_evidence_scorer(state: AgentState) -> AgentState:
@@ -1309,13 +1294,8 @@ def node_n07_evidence_scorer(state: AgentState) -> AgentState:
     
     corpus_indexed = state.get("corpus_indexed", {})
     cleaned = state.get("cleaned", {}).get("relations", []) or []
+    locator_by_index = _build_locator_index(corpus_indexed)
 
-    locator_by_index: Dict[int, Dict[str, Any]] = {}
-    for key, entry in corpus_indexed.items():
-        global_idx = entry.get("global_index")
-        if isinstance(global_idx, int):
-            locator_by_index[int(global_idx)] = entry
-    
     if not cleaned:
         return {"evidence": [], "scored": {"relations": []}}
     
@@ -1352,36 +1332,9 @@ def node_n07_evidence_scorer(state: AgentState) -> AgentState:
     all_evidence_records: List[Dict[str, Any]] = []
     
     for rel_idx, rel in enumerate(cleaned):
-        evidence_locators = rel.get("evidence_locators", [])
-        
-        # Fetch evidence sentences with section info
-        evidence_data: List[Dict[str, Any]] = []
-        for loc in evidence_locators:
-            sentence_text = ""
-            section_id = loc.get("section_id", "")
-            locator_key = loc.get("locator_key")
-
-            if locator_key and locator_key in corpus_indexed:
-                entry = corpus_indexed[locator_key]
-                sentence_text = entry.get("sentence", "")
-                section_id = entry.get("section", section_id)
-                loc.setdefault("section_id", section_id)
-            else:
-                global_idx = loc.get("global_index", loc.get("sentence_index"))
-                if isinstance(global_idx, int):
-                    entry = locator_by_index.get(int(global_idx))
-                    if entry:
-                        sentence_text = entry.get("sentence", "")
-                        section_id = entry.get("section", section_id)
-                        loc.setdefault("section_id", section_id)
-                        loc.setdefault("locator_key", entry.get("locator_key"))
-
-            if sentence_text:
-                evidence_data.append({
-                    "sentence": sentence_text,
-                    "section": section_id,
-                    "locator": loc
-                })
+        evidence_data = _resolve_evidence(
+            rel.get("evidence_locators", []), corpus_indexed, locator_by_index,
+        )
         
         if not evidence_data:
             # No evidence found - assign minimum score
@@ -1438,7 +1391,6 @@ def node_n07_evidence_scorer(state: AgentState) -> AgentState:
         # Rule 5: Sample size ≥50 (+0.10)
         # Check for sample size patterns
         sample_size = 0
-        import re
         sample_patterns = [
             r'n\s*=\s*(\d+)',
             r'n=(\d+)',
@@ -1584,23 +1536,12 @@ def node_n08_exporter(state: AgentState) -> AgentState:
     def _export_entity_metadata(rel_obj: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         candidate_meta = rel_obj.get("glycan_entity_metadata") or {}
         if candidate_meta:
-            return {
-                "glycan_structure_term": candidate_meta.get("glycan_structure_term"),
-                "non_structural_descriptor": candidate_meta.get("non_structural_descriptor"),
-                "alignment": candidate_meta.get("alignment"),
-                "aglycon": candidate_meta.get("aglycon"),
-            }
+            return _pick(candidate_meta, _ENTITY_META_KEYS)
 
         for candidate in [rel_obj.get("glycan_name"), rel_obj.get("glycan_mapped_name")]:
             key = (candidate or "").strip().lower()
             if key and key in entity_lookup:
-                ent = entity_lookup[key]
-                return {
-                    "glycan_structure_term": ent.get("glycan_structure_term"),
-                    "non_structural_descriptor": ent.get("non_structural_descriptor"),
-                    "alignment": ent.get("alignment"),
-                    "aglycon": ent.get("aglycon"),
-                }
+                return _pick(entity_lookup[key], _ENTITY_META_KEYS)
         return None
     
     # Build comprehensive curation record
@@ -1623,17 +1564,7 @@ def node_n08_exporter(state: AgentState) -> AgentState:
             "batch_number": current_batch,
             "batch_offset": batch_article_index,
         },
-        "entities": [
-            {
-                "glycan_structure_term": e.get("glycan_structure_term"),
-                "non_structural_descriptor": e.get("non_structural_descriptor"),
-                "alignment": e.get("alignment"),
-                "aglycon": e.get("aglycon"),
-                "chemical_structure": e.get("chemical_structure"),
-                "evidence_sentence": e.get("evidence_sentence")
-            }
-            for e in entities
-        ],
+        "entities": [_pick(e, _ENTITY_EXPORT_KEYS) for e in entities],
         "relations": []
     }
     
@@ -1644,38 +1575,17 @@ def node_n08_exporter(state: AgentState) -> AgentState:
         glycan_entity_metadata = _export_entity_metadata(rel)
         
         relation_record = {
-            "glycan_name": rel.get("glycan_name"),
-            "glycan_mapped_name": rel.get("glycan_mapped_name"),
-            "glycan_id": rel.get("glycan_id"),
-            "glycan_metadata": rel.get("glycan_metadata"),
+            **_pick(rel, _RELATION_KEYS),
             "glycan_entity_metadata": glycan_entity_metadata,
-            "disease_name": rel.get("disease_name"),
-            "disease_mapped_name": rel.get("disease_mapped_name"),
-            "disease_id": rel.get("disease_id"),
-            "disease_annotation": rel.get("disease_annotation"),
-            "treatment_annotation": rel.get("treatment_annotation"),
-            "specimen": rel.get("specimen"),
-            "species_name": rel.get("species_name"),
-            "species_mapped_name": rel.get("species_mapped_name"),
-            "species_id": rel.get("species_id"),
-            "protein_name": rel.get("protein_name"),
-            "protein_mapped_name": rel.get("protein_mapped_name"),
-            "protein_id": rel.get("protein_id"),
-            "biomarker_type": rel.get("biomarker_type"),
-            "direction": rel.get("direction"),
             "metrics": rel.get("metrics", []),
             "method_names": rel.get("method_names", []),
             "evidence_sentences": [
-                {
-                    "sentence": ev.get("sentence"),
-                    "section": ev.get("section"),
-                    "sentence_index": ev.get("sentence_index"),
-                }
+                _pick(ev, ["sentence", "section", "sentence_index"])
                 for ev in evidence_sentences
             ],
             "evidence_score": scored_rel.get("aggregate_score"),
             "evidence_label": scored_rel.get("label"),
-            "score_breakdown": scored_rel.get("score_breakdown", {})
+            "score_breakdown": scored_rel.get("score_breakdown", {}),
         }
         
         # Include normalization info if present
@@ -1756,7 +1666,7 @@ def node_n08_exporter(state: AgentState) -> AgentState:
         errors_record = {
             "processing_id": ids.get("processing_id"),
             "pmid": ids.get("pmid"),
-            "error_messages": [_serialize_message(m) for m in state_messages].pop(0), # this removes the first system message ###DEV
+            "error_messages": [_serialize_message(m) for m in state_messages].pop(0),  # removes the first system message
         }
         with open(errors_batch_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(errors_record, ensure_ascii=False) + "\n")
