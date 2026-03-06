@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu
 #SBATCH --output=logs/slurm-%j_output.txt    # Standard output file (%j expands to jobID)
 #SBATCH --error=logs/slurm-%j_error.txt      # Standard error file
-#SBATCH --time=24:00:00           # Time limit (HH:MM:SS)
+#SBATCH --time=48:00:00           # Time limit (HH:MM:SS)
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=28
 #SBATCH --mem=100567M      # Memory per node
