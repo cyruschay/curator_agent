@@ -1,0 +1,350 @@
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+    for s in app.stream(agent_state, stream_mode="updates"): # eval: "values", "updates", "debug"
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    for m in metrics
+             ^^^^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id '2e07f977-df33-c301-6041-0be416200abb'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id 'e4feefbd-927d-3070-ffb4-da27d6420d62'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id '304055df-8eb3-3f03-cd95-d969f82ef725'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 615, in node_n04_fulltext_re
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04_FullTextRE' and id '93a36be7-8028-bae3-82bf-96258936f5db'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id '80993350-63d8-4cd3-fcfb-32d119ed7d13'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 615, in node_n04_fulltext_re
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04_FullTextRE' and id '5400f554-7133-e777-a64f-b39e842a9ccb'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id '0b187467-0003-3afa-65e0-a3cc53643e29'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 615, in node_n04_fulltext_re
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04_FullTextRE' and id 'c465ee4a-9e0d-b747-c519-a42269cf705e'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id '947a4d30-554c-4ddd-da80-8c48c86a9d3e'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id 'a75aa363-a986-50b0-d75b-7a54a00a4a28'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id 'c4eaca75-1508-be81-5e18-2fe394efa652'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 356, in node_n03_fulltext_ner
+AttributeError: 'str' object has no attribute 'get'
+During task with name 'N03_FullTextNER' and id '78c180a5-c888-b78b-bd03-1d0426e19b7b'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 615, in node_n04_fulltext_re
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04_FullTextRE' and id '2dc3b876-62da-1d0c-e53f-ca5287e0accc'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id 'a27a4287-5d8a-2ce1-8831-b98594480535'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id 'fef4c1c0-3ae9-6d88-a167-6bc819dea636'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id '17c1df8e-4581-e335-51c4-cc2a4b037dab'
+Traceback (most recent call last):
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 2038, in <module>
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/main.py", line 2633, in stream
+    for _ in runner.tick(
+             ^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/pregel/_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/.conda/envs/ai_env/lib/python3.12/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cyruschauyeung/projects/curator_agent/src/agent/graph.py", line 761, in node_n04a_abstract_re
+    fulltext_for_re = ""
+                     ^^^^
+TypeError: 'NoneType' object is not iterable
+During task with name 'N04a_AbstractOnlyRE' and id 'cad56eb5-8000-7ed7-a283-3229ea7a01d4'
+slurmstepd: error: *** JOB 29677 ON gpu03 CANCELLED AT 2026-02-21T15:43:21 DUE TO TIME LIMIT ***
