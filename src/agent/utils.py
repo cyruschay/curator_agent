@@ -81,7 +81,7 @@ def line_hash_check(line: str, listf: Path | str, inputs: Optional[Dict[str, Any
 
     if match_index is not None:
         record = records[match_index]
-        if record.get("ingest_hash") == line_hash and record.get("status") == "completed":
+        if record.get("ingest_hash") == line_hash and record.get("status") in ["completed", "error"]:
             record["article_index"] = match_index
             return {
                 "action": "skip",
@@ -732,7 +732,8 @@ def index_corpus(doc: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     ABBREV_TOKENS = {
         "e.g.", "i.e.", "vs.", "Fig.", "Figs.", "Dr.", "Mr.", "Ms.", "Mrs.", "Prof.",
         "al.", "et al.", "No.", "Eq.", "Eqs.", "Ref.", "Refs.", "Inc.", "Co.", "Jr.", "Sr.",
-        "St.", "Jan.", "Feb.", "Mar.", "Apr.", "Jun.", "Jul.", "Aug.", "Sep.", "Sept.",
+        "St.", "Ch.",
+        "Jan.", "Feb.", "Mar.", "Apr.", "Jun.", "Jul.", "Aug.", "Sep.", "Sept.",
         "Oct.", "Nov.", "Dec.",
         "(Fig.", "(e.g.", "(i.e."
     }

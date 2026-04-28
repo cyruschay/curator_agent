@@ -602,7 +602,7 @@ def onto_protein_tool(protein_names: List[str], species_id: int) -> str:
             response = requests.get(
                 f'https://rest.uniprot.org/uniprotkb/search',
                 params={
-                    'query': f'protein_name:{query_name} AND species_id:{species_id}',
+                    'query': f'protein_name:{query_name} AND organism_id:{species_id}',
                     'fields': 'accession,protein_name,gene_primary,xref_hgnc',
                     'format': 'tsv'
                 },
