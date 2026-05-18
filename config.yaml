@@ -1,33 +1,33 @@
 # "deepseek-r1:14b" "qwen3-vl:30b-a3b-thinking" "nemotron-3-nano:30b" "gpt-oss:20b" "qwen3:30b"
 ollama_models:
-  reasoning_model: "qwen3:30b"
-  mini_model: "qwen3:30b"
-  nano_model: "qwen3:30b"
+  reasoning_model: "gpt-oss:20b"
+  mini_model: "gpt-oss:20b"
+  nano_model: "gpt-oss:20b"
 
 ollama_params:
   reasoning_model:
-    reasoning: true
-    num_predict: 10240
-    temperature: 0.15
+    reasoning: "medium"
+    num_predict: 20000
+    temperature: 0.5
     top_p: 0.9
     top_k: 40
-    repeat_penalty: 1.25
-    repeat_last_n: 256
+    repeat_penalty: 1.4
+    repeat_last_n: 20000
     seed: 2026
     extra: {}
   mini_model:
-    reasoning: true
-    num_predict: 4096
+    reasoning: "medium"
+    num_predict: 8192
     temperature: 0.4
     seed: 2026
     extra: {}
   nano_model:
-    reasoning: false
+    reasoning: "low"
     num_predict: 2048
     temperature: 0.2
     seed: 2026
     extra: {}
 
 paths:
-  input_abstracts: "abstracts_0001-1000.jsonl"
-  curation_output_dir: "qwen3-30b-prod-0.15-0.9-40-1.25-256-0001-1000"
+  input_abstracts: "abstracts_0001-2000.jsonl"
+  curation_output_dir: "gpt-oss-20b-medium-0.5-0.9-40-1.40-20000-0001-2000"
