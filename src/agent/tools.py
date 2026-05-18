@@ -7,7 +7,7 @@ from langchain_chroma import Chroma
 import json
 import os
 import requests
-from typing import List, Dict
+from typing import List, Dict, Optional
 from Bio import Entrez
 from pathlib import Path
 from dotenv import load_dotenv
@@ -568,17 +568,17 @@ def onto_cellline_tool(entities: List[str]) -> str:
 
 
 @tool
-def onto_protein_tool(protein_names: List[str], species_id: int) -> str:
-    """ 
+def onto_protein_tool(protein_names: List[str], species_name: Optional[str] = None) -> str:
+    """
     This tool searches UniProt for matching protein entries given protein names and an
-    organism taxonomy ID. It returns a compact TSV with canonical accessions and gene
+    optional species name. It returns a compact TSV with canonical accessions and gene
     symbols, limited to the top hits per query.
-    
+
     Args:
         protein_names: List of protein name strings to search for
-        species_id: NCBI Taxonomy ID of the species (e.g., 9606 for human)
-        Example: {'protein_names': ['insulin', 'IgG'], 'species_id': 9606}
-        
+        species_name: Optional species name string (e.g., 'human', 'Homo sapiens', 'mouse')
+        Example: {'protein_names': ['insulin', 'IgG'], 'species_name': 'human'}
+
     Returns:
         TSV-formatted string containing searching results:
         - UniProt accession IDs
@@ -588,21 +588,20 @@ def onto_protein_tool(protein_names: List[str], species_id: int) -> str:
         - Others
     """
     import requests
-    
+
     if not protein_names:
         return "Error: No protein names provided"
-    
+
     output_str = ""
-    
+
     for name in protein_names:
         query_name = name.strip()
-        if species_id == "960?":
-            species_id = 9606  # Fix common typo
+        query = f'protein_name:{query_name} AND organism_name:{species_name}' if species_name else f'protein_name:{query_name}'
         try:
             response = requests.get(
                 f'https://rest.uniprot.org/uniprotkb/search',
                 params={
-                    'query': f'protein_name:{query_name} AND organism_id:{species_id}',
+                    'query': query,
                     'fields': 'accession,protein_name,gene_primary,xref_hgnc',
                     'format': 'tsv'
                 },
