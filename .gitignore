@@ -1,6 +1,9 @@
 # Others
 .DS_Store
 .env
+data/processed/curation/
+logs/
+scripts/temp_storage.py
 
 
 # Byte-compiled / optimized / DLL files
