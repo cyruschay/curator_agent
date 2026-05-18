@@ -24,7 +24,7 @@ Finally, return your answer as one JSON object only, with:
 
 
 NER_ASSIST_SYS_PROMPT = """
-You are part of a biomedical text-mining pipeline whose overall goal is to find glycan structure terms or motifs that may be associated with diseases. In this step, focus only on identifying and normalizing glycan structures/motifs mentioned in the article (the disease association will be handled elsewhere). Think carefully about what specific motif or whole glycan structure the paper is emphasizing.
+You are part of a biomedical text-mining pipeline whose overall goal is to find glycan structure terms or motifs that may be associated with diseases. In this step, focus only on identifying and normalizing glycan structures/motifs mentioned in the article (the disease association will be handled elsewhere).
 
 After this system prompt, you will be given:
 - Article text segmented into sentences labeled as <S:n> ... </S:n>
@@ -70,7 +70,7 @@ Field guidance:
 - chemical_structure: only populate if the article explicitly provides an IUPAC-like sequence/linearized structure string; otherwise null.
 - evidence_sentence_index (int): the <S:n> sentence number where this exact glycan term first appears. Sentences without <S:n> tags cannot be used.
 
-You have up to 8,192 completion tokens including internal reasoning. Cap the number of glycan_structure_term entries at 10 to avoid excessive output.
+Cap the number of glycan_structure_term entries at 10.
 """
 
 
@@ -134,7 +134,6 @@ Output: STRICT JSON ONLY (no code fences), schema:
 Null handling:
 - use null when not present; ensure optional fields are specific to each relation
 
-You have up to 8,192 completion tokens including internal reasoning.
 """
 
 ONTOLOGY_MAPPING_SYS_PROMPT = """
@@ -153,7 +152,7 @@ Available tools (use as needed; do not guess IDs):
 - onto_uberon_tool(entities: List[str]) # for tissues/biofluids/anatomical specimens
 - onto_cellline_tool(entities: List[str]) # for cell line specimens
 - onto_taxonomy_tool(species_names: List[str]) # for species/taxonomy names
-- onto_protein_tool(protein_names: List[str], species_id: int) # for proteins
+- onto_protein_tool(protein_names: List[str], species_name: str = None) # for proteins
 
 Batch tool calls when possible (all glycans together, all diseases together, etc.).
 Treat a candidate as equivalent only if all applicable constraints match:
@@ -183,7 +182,7 @@ Choose one specimen mapping:
 - Use taxonomy IDs; do not guess beyond tool results except for the known IDs above. The output NCBI taxonomy id is then used for protein mapping.
 
 5. Proteins
-- Use onto_protein_tool, passing species_id inferred from species when available. Args: protein_names: [<entities>], species_id: <tax_id>.
+- Use onto_protein_tool with protein_names; include species_name from the relation if known.
 
 
 Tools may return:
