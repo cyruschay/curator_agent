@@ -9,7 +9,6 @@ import hashlib
 import jsonschema
 
 from copy import deepcopy
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -217,42 +216,15 @@ def validate_schema(json_record: dict, schema: dict) -> str: # Status: okay
 
 
 # ======================================================================================
-# Model config helpers
-# ======================================================================================
-
-@dataclass(frozen=True)
-class OllamaModelParams:
-    temperature: Optional[float] = None
-    reasoning: Optional[bool] = None
-    num_predict: Optional[int] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
-
-    @staticmethod
-    def from_config(config: Dict[str, Any], model_key: str) -> "OllamaModelParams":
-        params = (config.get("ollama_params", {}) or {}).get(model_key, {}) or {}
-        return OllamaModelParams(
-            temperature=params.get("temperature"),
-            reasoning=params.get("reasoning"),
-            num_predict=params.get("num_predict"),
-            extra=dict(params.get("extra", {}) or {}),
-        )
-
-    def to_kwargs(self) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {}
-        if self.temperature is not None:
-            payload["temperature"] = self.temperature
-        if self.reasoning is not None:
-            payload["reasoning"] = self.reasoning
-        if self.num_predict is not None:
-            payload["num_predict"] = self.num_predict
-        if self.extra:
-            payload.update(self.extra)
-        return payload
-
-
-# ======================================================================================
 # LLM + logging helpers (shared by graph nodes)
 # ======================================================================================
+
+from adapters.ollama import (
+    OllamaInvocationMetadata,
+    _extract_json,
+    log_invocation_metadata,
+)
+
 
 def _print_msg(msg_type: str = "INFO", content: str = "") -> None:
     current_time = datetime.now().strftime("%H:%M:%S")
@@ -322,46 +294,146 @@ def _dedup_relations(relations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     return list(seen.values())
 
-# Invoke LLM; returns dict with reasoning, output, error, metadata
-def _invoke_llm(sm, hm, model, messages: Optional[Sequence[BaseMessage]] = None,) -> Dict[str, Any]:
-    resp = {"reasoning": "", "output": None, "error": None, "tool_calls": None, "metadata": None}
-    if messages is not None:
-        payload = list(messages)
-    else:
-        payload = [m for m in (sm, hm) if m is not None]
 
+def _build_invocation_metadata(raw_resp: Any) -> OllamaInvocationMetadata:
+    """Extract OllamaInvocationMetadata from a raw ChatOllama response."""
+    _NS = 1_000_000_000.0
+    response_metadata = dict(getattr(raw_resp, "response_metadata", {}) or {})
+    usage_metadata = dict(getattr(raw_resp, "usage_metadata", {}) or {})
+
+    def _ns(v: Any) -> float | None:
+        return float(v) / _NS if isinstance(v, (int, float)) else None
+
+    total_s = _ns(response_metadata.get("total_duration"))
+    load_s = _ns(response_metadata.get("load_duration"))
+    prompt_eval_s = _ns(response_metadata.get("prompt_eval_duration"))
+    eval_s = _ns(response_metadata.get("eval_duration"))
+
+    thinking_s: float | None = None
+    if all(v is not None for v in (total_s, load_s, prompt_eval_s, eval_s)):
+        thinking_s = max(0.0, total_s - load_s - prompt_eval_s - eval_s)
+
+    input_tokens = usage_metadata.get("input_tokens")
+    output_tokens = usage_metadata.get("output_tokens")
+    total_tokens = usage_metadata.get("total_tokens")
+    if total_tokens is None and isinstance(input_tokens, int) and isinstance(output_tokens, int):
+        total_tokens = input_tokens + output_tokens
+
+    additional_kwargs = dict(getattr(raw_resp, "additional_kwargs", {}) or {})
+    reasoning_content = additional_kwargs.get("reasoning_content")
+
+    thinking_tokens: int | None = None
+    thinking_tokens_estimated = False
+    output_token_details = usage_metadata.get("output_token_details") or {}
+    exact_thinking = output_token_details.get("reasoning")
+    if isinstance(exact_thinking, int):
+        thinking_tokens = exact_thinking
+    elif isinstance(reasoning_content, str) and reasoning_content:
+        thinking_tokens = max(1, len(reasoning_content) // 4)
+        thinking_tokens_estimated = True
+
+    return OllamaInvocationMetadata(
+        model=response_metadata.get("model"),
+        created_at=response_metadata.get("created_at"),
+        done_reason=response_metadata.get("done_reason"),
+        done=response_metadata.get("done"),
+        total_duration_seconds=total_s,
+        load_duration_seconds=load_s,
+        prompt_eval_duration_seconds=prompt_eval_s,
+        thinking_duration_seconds=thinking_s,
+        eval_duration_seconds=eval_s,
+        input_tokens=input_tokens if isinstance(input_tokens, int) else None,
+        thinking_tokens=thinking_tokens,
+        thinking_tokens_estimated=thinking_tokens_estimated,
+        output_tokens=output_tokens if isinstance(output_tokens, int) else None,
+        total_tokens=total_tokens if isinstance(total_tokens, int) else None,
+        raw_response_metadata=response_metadata,
+        raw_usage_metadata=usage_metadata,
+    )
+
+
+def _invoke_once(
+    payload: List[BaseMessage],
+    model: Any,
+) -> Dict[str, Any]:
+    """Single LLM invocation returning a normalized resp dict."""
+    resp: Dict[str, Any] = {
+        "reasoning": "", "output": None, "error": None,
+        "tool_calls": None, "metadata": None, "truncated": False,
+    }
     try:
         raw_resp = model.invoke(payload)
         try:
-            # Extract content
             resp_content = raw_resp.content
-
-            # Reasoning is provided via additional_kwargs (newer model behavior)
             reasoning = None
             if hasattr(raw_resp, "additional_kwargs") and isinstance(raw_resp.additional_kwargs, dict):
                 reasoning = raw_resp.additional_kwargs.get("reasoning_content")
             if isinstance(reasoning, str) and reasoning.strip():
                 resp["reasoning"] = reasoning.strip()
 
-            # Output is always the main content
-            resp["output"] = resp_content.strip()
+            resp["output"] = resp_content.strip() if isinstance(resp_content, str) else ""
 
-            # Extract tools calls if any
             if hasattr(raw_resp, "tool_calls") and raw_resp.tool_calls is not None:
                 resp["tool_calls"] = raw_resp.tool_calls
 
-            # Extract metadata
             resp["metadata"] = raw_resp.response_metadata
+
+            inv_meta = _build_invocation_metadata(raw_resp)
+            log_invocation_metadata(inv_meta)
+
+            if inv_meta.done_reason == "length":
+                resp["truncated"] = True
 
         except Exception as e:
             resp["error"] = f"Response has no content. Error message: {e}"
     except Exception as e:
         resp["error"] = f"Model cannot be invoked. Error message: {e}"
-
     return resp
 
-def _parse_llm_resp(resp: Dict[str, Any], node_id: str = "?") -> Tuple[List[BaseMessage], List[BaseMessage], Any]:
-    """Normalize LLM responses into LangGraph message lists and parsed JSON."""
+
+def invoke_and_parse(
+    sm: Optional[BaseMessage],
+    hm: Optional[BaseMessage],
+    model: Any,
+    *,
+    messages: Optional[Sequence[BaseMessage]] = None,
+    node_id: str = "?",
+) -> Tuple[Dict[str, Any], List[BaseMessage], List[BaseMessage], Any, Dict[str, Any]]:
+    """Invoke LLM, log metadata, parse JSON — replaces the 4-line boilerplate.
+
+    If the response is truncated (done_reason == "length"), retries once with
+    temperature=0.7 and uses whichever attempt yielded valid JSON.
+
+    Returns
+    -------
+    (resp, new_messages, new_reasonings, output_json, llm_log)
+    """
+    if messages is not None:
+        payload = list(messages)
+    else:
+        payload = [m for m in (sm, hm) if m is not None]
+
+    resp = _invoke_once(payload, model)
+
+    # Truncation retry: re-invoke with temperature=0.7
+    if resp["truncated"] and not resp.get("error"):
+        _print_msg("WARN", f"[{node_id}] Response truncated (hit num_predict). Retrying with temperature=0.7")
+        try:
+            retry_model = model.bind(temperature=0.7) if hasattr(model, "bind") else model
+            retry_resp = _invoke_once(payload, retry_model)
+
+            # Use retry if it produced more output and wasn't also truncated
+            first_len = len(resp.get("output") or "")
+            retry_len = len(retry_resp.get("output") or "")
+            if not retry_resp.get("error") and retry_len > first_len:
+                _print_msg("INFO", f"[{node_id}] Retry produced longer output ({retry_len} vs {first_len} chars). Using retry.")
+                resp = retry_resp
+            else:
+                _print_msg("INFO", f"[{node_id}] Retry did not improve. Using original truncated response.")
+        except Exception as e:
+            _print_msg("WARN", f"[{node_id}] Truncation retry failed: {e}. Using original response.")
+
+    # Parse into LangGraph messages + JSON
     new_messages: List[BaseMessage] = []
     new_reasonings: List[BaseMessage] = []
     output_json: Any = {}
@@ -370,51 +442,82 @@ def _parse_llm_resp(resp: Dict[str, Any], node_id: str = "?") -> Tuple[List[Base
         new_reasonings.append(AIMessage(content=f"Node_{node_id}. {resp['reasoning']}"))
     if resp.get("error"):
         new_messages.append(AIMessage(content=f"Node_{node_id}. ERROR: Model invocation. {resp['error']}"))
+    if resp["truncated"]:
+        new_messages.append(AIMessage(content=f"Node_{node_id}. WARN: Response may be truncated (done_reason=length)."))
 
     if resp.get("output"):
         raw_output = resp["output"].strip()
-        fenced_match = re.search(r"```(?:\s*json)?\s*\n?(.*?)\n?```", raw_output, flags=re.S | re.I)
-        candidate = fenced_match.group(1) if fenced_match else raw_output
         try:
-            output_json = json.loads(candidate)
+            output_json = _extract_json(raw_output)
         except Exception as exc:
             new_messages.append(
-                AIMessage(
-                    content=f"Node_{node_id}. ERROR: LLM output is not valid JSON. {exc}"
-                )
+                AIMessage(content=f"Node_{node_id}. ERROR: LLM output is not valid JSON. {exc}")
             )
             output_json = {}
     else:
-        new_messages.append(AIMessage(content=f"Node_{node_id}. ERROR: Empty LLM content output."))
+        if not resp.get("error"):
+            new_messages.append(AIMessage(content=f"Node_{node_id}. ERROR: Empty LLM content output."))
 
-    return new_messages, new_reasonings, output_json
-
-def _print_llm_metadata(resp: Dict[str, Any]) -> str:
-    rm = {}
-    metadata = resp.get("metadata", {}) or {}
-    metadata_keys = ["model", "done", "done_reason", "load_duration", "prompt_eval_duration", "eval_duration", "total_duration", "prompt_eval_count", "eval_count"]
-    for key in metadata_keys:
-        rm[key] = metadata.get(key, None)
-
-    # Convert ns to s
-    _in_sec = lambda ms: round(ms / 1_000_000_000, 1) if isinstance(ms, (int, float)) else None
-
-    dur_str = f"duration=(total:{_in_sec(rm['total_duration'])}s ({_in_sec(rm['load_duration'])}/{_in_sec(rm['prompt_eval_duration'])}/{_in_sec(rm['eval_duration'])}))"
-    prompt_tokens = rm.get("prompt_eval_count") or 0
-    eval_tokens = rm.get("eval_count") or 0
-    token_str = f"tokens=(total:{prompt_tokens + eval_tokens} ({eval_tokens}/{prompt_tokens}))"
-
-    out_str = f"model={rm['model']} done={rm['done']} ({rm['done_reason']}) {dur_str} {token_str}"
-
-    current_time = datetime.now().strftime("%H:%M:%S")
-    print(f"{current_time} INFO - [RESP] {out_str}")
-
-def _llm_log_entry(resp: Dict[str, Any], node_id: str) -> Dict[str, Any]:
-    return {
+    llm_log: Dict[str, Any] = {
         "node": node_id,
         "tool_calls": resp.get("tool_calls"),
         "metadata": resp.get("metadata"),
+        "truncated": resp["truncated"],
     }
+
+    return resp, new_messages, new_reasonings, output_json, llm_log
+
+
+def build_index_lookup(corpus_indexed: Dict[str, Any]) -> Dict[int, Tuple[str, Dict[str, Any]]]:
+    """Map global sentence index -> (locator_key, locator_dict)."""
+    return {
+        loc["global_index"]: (key, loc)
+        for key, loc in corpus_indexed.items()
+        if isinstance(loc.get("global_index"), int)
+    }
+
+
+def build_sections_dict(corpus_indexed: Dict[str, Any]) -> Dict[str, List[Tuple[int, str]]]:
+    """Group sentences by section name, sorted by sentence number."""
+    sections: Dict[str, List[Tuple[int, str]]] = {}
+    for key, loc in corpus_indexed.items():
+        sec = loc.get("section", "UNKNOWN")
+        sent = loc.get("sentence", "")
+        match = re.match(r"<S:(\d+)>", key)
+        s_num = int(match.group(1)) if match else 0
+        sections.setdefault(sec, []).append((s_num, sent))
+    for sec in sections:
+        sections[sec].sort(key=lambda x: x[0])
+    return sections
+
+
+def resolve_evidence_locators(
+    sentence_indexes: Sequence[Any],
+    index_lookup: Dict[int, Tuple[str, Dict[str, Any]]],
+) -> Tuple[List[Dict[str, Any]], List[str], List[int]]:
+    """Resolve sentence indexes to evidence locator dicts and texts."""
+    evidence_locators: List[Dict[str, Any]] = []
+    evidence_texts: List[str] = []
+    normalized_indexes: List[int] = []
+
+    for s_idx in sentence_indexes:
+        try:
+            s_idx_int = int(s_idx)
+        except (TypeError, ValueError):
+            continue
+        lookup = index_lookup.get(s_idx_int)
+        if not lookup:
+            continue
+        loc_key, loc = lookup
+        evidence_locators.append({
+            "locator_key": loc.get("locator_key", loc_key),
+            "section": loc.get("section", ""),
+            "global_index": s_idx_int,
+        })
+        evidence_texts.append(loc.get("sentence", ""))
+        normalized_indexes.append(s_idx_int)
+
+    return evidence_locators, evidence_texts, normalized_indexes
 
 
 def build_agent_state_from_input_obj(obj: dict, ingest_hash: str, article_index: Optional[int] = None,) -> AgentState:

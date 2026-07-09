@@ -24,7 +24,6 @@ class IDs(TypedDict, total=False):
 class Doc(TypedDict, total=False):
     title: str
     abstract: str
-    full_text: Optional[Dict[str, Any]]  # sections_json (structured JATS → JSON)
     metadata: Dict[str, Any]
 
 class Flags(TypedDict, total=False):
@@ -207,13 +206,6 @@ class Outputs(TypedDict, total=False):
 class Tags(TypedDict, total=False):
     lexicon_hits: Optional[Dict[str, int]]  # feature counts, optional
 
-class ChunkIndex(TypedDict, total=False):
-    # opaque chunking index only if text is extremely long
-    spec: Dict[str, Any]
-
-class Approvals(TypedDict, total=False):
-    queue: List[Dict[str, Any]]  # new glycan terms, etc.
-
 
 # AgentState
 # - For lists: use operator.add (append)
@@ -236,10 +228,8 @@ class AgentState(TypedDict, total=False):
     screening: Annotated[Screening, operator.or_]
 
     # Corpus, locators, indices
-    corpus_raw: Annotated[Corpus, operator.or_]
     corpus_indexed: Annotated[Dict[str, Locator], operator.or_]  # key: "<S:n>@SECTION"
     summarized_sections: Annotated[Dict[str, Any], operator.or_]
-    chunk_index: Annotated[ChunkIndex, operator.or_]
 
     # Extraction candidates
     candidates: Annotated[Candidates, operator.or_]
@@ -253,7 +243,6 @@ class AgentState(TypedDict, total=False):
     evidence: Annotated[List[EvidenceRecord], operator.add]
     scored: Annotated[Dict[str, List[ScoredRelation]], operator.or_]      # {"relations": [...]}
     violations: Annotated[List[Dict[str, Any]], operator.add]
-    approvals: Annotated[Approvals, operator.or_]
 
     # Outputs
     outputs: Annotated[Outputs, operator.or_]
@@ -275,7 +264,7 @@ def empty_state() -> AgentState:
     """Construct a minimally valid, merge-safe empty AgentState."""
     return AgentState(
         ids=IDs(processing_id="", pmid=None, pmcid=None),
-        doc=Doc(title="", abstract="", full_text=None, metadata={}),
+        doc=Doc(title="", abstract="", metadata={}),
         flags=Flags(
             has_pmcid=False,
             can_use_fulltext=False,
@@ -293,10 +282,8 @@ def empty_state() -> AgentState:
             flags=ScreeningFlags(needs_fulltext=False),
             confidence=0.0,
         ),
-        corpus_raw=Corpus(),
         corpus_indexed={},                         # id -> Locator
         summarized_sections={},
-        chunk_index=ChunkIndex(spec={}),
         candidates=Candidates(entities=[], relations=[], red_flags=[]),
         mapped={"relations": []},
         validated={"relations": []},
@@ -304,7 +291,6 @@ def empty_state() -> AgentState:
         evidence=[],
         scored={"relations": []},
         violations=[],
-        approvals=Approvals(queue=[]),
         outputs=Outputs(
             curations_path=None,
             approvals_path=None,

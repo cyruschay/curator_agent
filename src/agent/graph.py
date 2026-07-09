@@ -9,8 +9,9 @@ import re
 
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
-from langchain_ollama import ChatOllama
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, ToolMessage, AIMessage
+
+from adapters.ollama import build_chat_ollama
 
 load_dotenv()
 
@@ -46,35 +47,34 @@ ontology_mapping_tools = [
 # UTILS (deterministic, non-LLM helpers)
 from utils import (
     # Preprocessing
-    line_hash_check,                 # (line:str, listf:Path|str) -> "skip"|"process"
-    validate_schema,                 # (json_record:dict, schema:dict) -> "valid"|"invalid"
-    build_agent_state_from_input_obj,# (obj:dict, ingest_hash:str) -> AgentState
+    line_hash_check,
+    validate_schema,
+    build_agent_state_from_input_obj,
     update_curated_status,
 
     # Shared helpers
-    OllamaModelParams,
     _print_msg,
     _relations_found,
     _dedup_relations,
-    _invoke_llm,
-    _parse_llm_resp,
-    _print_llm_metadata,
-    _llm_log_entry,
+    invoke_and_parse,
+    build_index_lookup,
+    build_sections_dict,
+    resolve_evidence_locators,
 
     # N01 — Screener
-    feature_scorer,                  # (features:Dict[str,int]) -> Dict
+    feature_scorer,
 
     # N02 — Retrieval & Corpus
-    retrieve_pmc_fulltext,           # (pmcid:str) -> Dict[str,Any]
-    index_corpus,                   # (sections_json:dict) -> {key->Locator}
-    count_chars_per_section,            # (sections_json:dict, token_threshold:int) -> dict
+    retrieve_pmc_fulltext,
+    index_corpus,
+    count_chars_per_section,
 
     # N03 — NER helpers
-    assemble_summarized_fulltext_for_ner,  # (title_doc, corpus_indexed, section_titles, summarized_sections) -> str
+    assemble_summarized_fulltext_for_ner,
 
     # N04 — Relation helpers
-    negation_hedge_detector,         # (text:str) -> {"negated":bool,"hedged":bool}
-    normalize_method_names,          # (names:[str]) -> [str]
+    negation_hedge_detector,
+    normalize_method_names,
 )
 
 
@@ -95,27 +95,10 @@ if not list_path.exists():
     list_path.touch()
 
 
-# Models
-
-
-
-# Model params configured in config.yaml
-reasoning_params = OllamaModelParams.from_config(config_data, "reasoning_model").to_kwargs()
-REASONING_MODEL = ChatOllama(
-    model=config_data["ollama_models"]["reasoning_model"],
-    **reasoning_params,
-)
-MINI_MODEL = ChatOllama(
-    model=config_data["ollama_models"]["mini_model"],
-    **OllamaModelParams.from_config(config_data, "mini_model").to_kwargs(),
-)
-
-NANO_MODEL = ChatOllama(
-    model=config_data["ollama_models"]["nano_model"],
-    **OllamaModelParams.from_config(config_data, "nano_model").to_kwargs(),
-)
-#MINI_MODEL = ChatOllama(model=config_data["ollama_models"]["mini_model"], temperature=0)
-#NANO_MODEL = ChatOllama(model=config_data["ollama_models"]["nano_model"], temperature=0)
+# Models (built via adapter from config.yaml)
+REASONING_MODEL = build_chat_ollama(config_data=config_data, model_key="reasoning_model", format=None)
+MINI_MODEL = build_chat_ollama(config_data=config_data, model_key="mini_model", format=None)
+NANO_MODEL = build_chat_ollama(config_data=config_data, model_key="nano_model", format=None)
 
 # Safety limits (avoid runaway generations / context truncation)
 NER_MAX_INPUT_CHARS = 1500000
@@ -160,10 +143,8 @@ def node_n01_screener(state: AgentState) -> AgentState:
     # Invoke LLM
     sm = SystemMessage(content=SCREENING_SYS_PROMPT)
     hm = HumanMessage(content=f"Title:\n{title}\n\nAbstract:\n{abstract}")
-    resp = _invoke_llm(sm, hm, screening_model)
-    _print_llm_metadata(resp)
-    llm_logs = [_llm_log_entry(resp, "n01")]
-    new_messages, new_reasonings, output_json = _parse_llm_resp(resp=resp, node_id="n01")
+    resp, new_messages, new_reasonings, output_json, log = invoke_and_parse(sm, hm, screening_model, node_id="n01")
+    llm_logs = [log]
 
     # Extract output_json fields; override LLM's RELEVANT decision if feature score is -1
     if "decision" in output_json:
@@ -216,7 +197,6 @@ def node_n02_retrieval(state: AgentState) -> AgentState:
     # PMCID exists. Initialize these agent state top-level keys
     corpus_raw = {}
     corpus_indexed = {}
-    chunk_index = {}
 
     try:
         corpus_raw = retrieve_pmc_fulltext(str(pmcid))
@@ -240,9 +220,7 @@ def node_n02_retrieval(state: AgentState) -> AgentState:
         return {"flags": flags, "messages": new_messages}
     
     node_n02_output = {
-        "corpus_raw": corpus_raw,
         "corpus_indexed": corpus_indexed,
-        "chunk_index": {"total_chars": total_chars},
         "flags": flags,
     }
 
@@ -264,10 +242,8 @@ def node_n03_fulltext_ner(state: AgentState) -> AgentState:
     filt_sm = SystemMessage(content=(SECTION_FILTER_SYS_PROMPT))
     filt_hm = HumanMessage(content=json.dumps({"section_titles": section_titles}))
     
-    filt_resp = _invoke_llm(filt_sm, filt_hm, nano_model)
-    _print_llm_metadata(filt_resp)
-    llm_logs: List[Dict[str, Any]] = [_llm_log_entry(filt_resp, "n03_section_filter")]
-    filt_messages, filt_reasonings, filt_json = _parse_llm_resp(filt_resp, node_id="n03_section_filter")
+    filt_resp, filt_messages, filt_reasonings, filt_json, filt_log = invoke_and_parse(filt_sm, filt_hm, nano_model, node_id="n03_section_filter")
+    llm_logs: List[Dict[str, Any]] = [filt_log]
 
     if isinstance(filt_json, list):
         selected_titles = [str(t) for t in filt_json]
@@ -301,11 +277,8 @@ def node_n03_fulltext_ner(state: AgentState) -> AgentState:
             sum_payload = {"sections": [{"title": t, "text": per_section_text[t]} for t in selected_titles]}
             sum_hm = HumanMessage(content=json.dumps(sum_payload)[:100000])
             
-            mini_resp = _invoke_llm(sum_sm, sum_hm, mini_model)
-            #print(mini_resp)
-            _print_llm_metadata(mini_resp)
-            llm_logs.append(_llm_log_entry(mini_resp, "n03_section_summarizer"))
-            sum_messages, sum_reasonings, sum_json = _parse_llm_resp(mini_resp, node_id="n03_section_summarizer")
+            mini_resp, sum_messages, sum_reasonings, sum_json, sum_log = invoke_and_parse(sum_sm, sum_hm, mini_model, node_id="n03_section_summarizer")
+            llm_logs.append(sum_log)
 
             if isinstance(sum_json, dict) and isinstance(sum_json.get("summarized_sections"), dict):
                 summarized_sections = {str(k): str(v) for k, v in sum_json["summarized_sections"].items()}
@@ -330,10 +303,8 @@ def node_n03_fulltext_ner(state: AgentState) -> AgentState:
     ner_hm = HumanMessage(content=fulltext_for_ner)
 
     entities: List[Dict[str, Any]] = []
-    ner_resp = _invoke_llm(ner_sm, ner_hm, ner_model)
-    _print_llm_metadata(ner_resp)
-    llm_logs.append(_llm_log_entry(ner_resp, "n03_ner"))
-    ner_messages, ner_reasonings, ner_json = _parse_llm_resp(ner_resp, node_id="n03_ner")
+    ner_resp, ner_messages, ner_reasonings, ner_json, ner_log = invoke_and_parse(ner_sm, ner_hm, ner_model, node_id="n03_ner")
+    llm_logs.append(ner_log)
     
     # Patch: handle missing 'glycans' field and list only
     if isinstance(ner_json, list):
@@ -346,11 +317,7 @@ def node_n03_fulltext_ner(state: AgentState) -> AgentState:
         glycans_list = []
 
     # Build index lookup to map sentence_index back to sentence text
-    index_lookup: Dict[int, Tuple[str, Dict[str, Any]]] = {}
-    for key, loc in corpus_indexed.items():
-        sentence_idx = loc.get("global_index")
-        if sentence_idx is not None:
-            index_lookup[sentence_idx] = (key, loc)
+    index_lookup = build_index_lookup(corpus_indexed)
 
     for g in glycans_list:
         evidence_idx = g.get("evidence_sentence_index")
@@ -427,10 +394,8 @@ def node_n03a_abstract_ner(state: AgentState) -> AgentState:
     hm = HumanMessage(content=fulltext_for_ner[:12000])
     
     entities = []
-    resp = _invoke_llm(sm, hm, ner_model)
-    _print_llm_metadata(resp)
-    llm_logs = [_llm_log_entry(resp, "n03a_ner")]
-    ner_messages, ner_reasonings, ner_json = _parse_llm_resp(resp, node_id="n03a_ner")
+    resp, ner_messages, ner_reasonings, ner_json, log = invoke_and_parse(sm, hm, ner_model, node_id="n03a_ner")
+    llm_logs = [log]
 
     glycans_list = ner_json.get("glycans", "ERROR")
     if glycans_list == "ERROR":
@@ -438,11 +403,7 @@ def node_n03a_abstract_ner(state: AgentState) -> AgentState:
         glycans_list = []
     
     # Build index lookup to map sentence_index back to sentence text
-    index_lookup: Dict[int, Tuple[str, Dict[str, Any]]] = {}
-    for key, loc in abstract_indexed.items():
-        sentence_idx = loc.get("global_index")
-        if sentence_idx is not None:
-            index_lookup[sentence_idx] = (key, loc)
+    index_lookup = build_index_lookup(abstract_indexed)
     
     for g in glycans_list:
         evidence_idx = g.get("evidence_sentence_index")
@@ -553,10 +514,8 @@ def node_n04_fulltext_re(state: AgentState) -> AgentState:
     sm = SystemMessage(content=RELATION_EXTRACT_SYS_PROMPT)
     hm = HumanMessage(content=fulltext_for_re)
     
-    resp = _invoke_llm(sm, hm, re_model)
-    _print_llm_metadata(resp)
-    llm_logs = [_llm_log_entry(resp, "n04")]
-    re_messages, re_reasonings, output_json = _parse_llm_resp(resp=resp, node_id="n04")
+    resp, re_messages, re_reasonings, output_json, log = invoke_and_parse(sm, hm, re_model, node_id="n04")
+    llm_logs = [log]
 
     if "relations" in output_json:
         extracted = output_json.get("relations")
@@ -564,11 +523,7 @@ def node_n04_fulltext_re(state: AgentState) -> AgentState:
         extracted = []
         re_messages.append(AIMessage(content=f"[n04_parse_error] Missing 'relations' field in LLM output"))
     
-    index_lookup: Dict[int, Tuple[str, Dict[str, Any]]] = {}
-    for key, loc in corpus_indexed.items():
-        global_idx = loc.get("global_index")
-        if isinstance(global_idx, int):
-            index_lookup[global_idx] = (key, loc)
+    index_lookup = build_index_lookup(corpus_indexed)
 
     # Post-process: convert evidence_sentence_indexes to evidence_locators
     for rel in extracted:
@@ -697,10 +652,8 @@ def node_n04a_abstract_re(state: AgentState) -> AgentState:
     hm = HumanMessage(content=fulltext_for_re[:12000])
     
     extracted: List[Dict[str, Any]] = []
-    resp = _invoke_llm(sm, hm, re_model)
-    _print_llm_metadata(resp)
-    llm_logs = [_llm_log_entry(resp, "n04a")]
-    re_messages, re_reasonings, output_json = _parse_llm_resp(resp=resp, node_id="n04a")
+    resp, re_messages, re_reasonings, output_json, log = invoke_and_parse(sm, hm, re_model, node_id="n04a")
+    llm_logs = [log]
 
     
     if isinstance(output_json, dict) and "relations" in output_json:
@@ -711,11 +664,7 @@ def node_n04a_abstract_re(state: AgentState) -> AgentState:
     
     _print_msg("INFO", f"Extracted {len(extracted)} relations") ###################################################################
     
-    index_lookup: Dict[int, Tuple[str, Dict[str, Any]]] = {}
-    for key, loc in abstract_indexed.items():
-        global_idx = loc.get("global_index")
-        if isinstance(global_idx, int):
-            index_lookup[global_idx] = (key, loc)
+    index_lookup = build_index_lookup(abstract_indexed)
 
     # Post-process: convert evidence_sentence_indexes to evidence_locators
     for rel_idx, rel in enumerate(extracted):
@@ -898,20 +847,13 @@ def node_n05_mapper(state: AgentState) -> AgentState:
 
     try:
         conversation: List[BaseMessage] = [sm, hm]
-        resp = _invoke_llm(sm, hm, mapper_model)
-        _print_llm_metadata(resp)
-        llm_logs.append(_llm_log_entry(resp, "n05"))
-
-        if resp.get("reasoning"):
-            new_reasonings.append(AIMessage(content=f"Node_n05. {resp['reasoning']}"))
-        if resp.get("error"):
-            new_messages.append(AIMessage(content=f"Node_n05. ERROR: {resp['error']}"))
-            raise RuntimeError(resp["error"])
-
-        # Extract output and build initial AI message
-        parse_messages, parse_reasonings, mapping_json = _parse_llm_resp(resp, node_id="n05")
+        resp, parse_messages, parse_reasonings, mapping_json, log = invoke_and_parse(sm, hm, mapper_model, node_id="n05")
+        llm_logs.append(log)
         new_messages.extend(parse_messages)
         new_reasonings.extend(parse_reasonings)
+
+        if resp.get("error"):
+            raise RuntimeError(resp["error"])
 
         # Build AIMessage for conversation history (content may be empty if tool_calls-only)
         ai_message = AIMessage(
@@ -962,19 +904,13 @@ def node_n05_mapper(state: AgentState) -> AgentState:
             # Add all tool messages to the conversation
             conversation.extend(tool_messages)
 
-            resp = _invoke_llm(None, None, mapper_model, messages=conversation)
-            _print_llm_metadata(resp)
-            llm_logs.append(_llm_log_entry(resp, f"n05_iter{iteration}"))
-            if resp.get("reasoning"):
-                new_reasonings.append(AIMessage(content=f"Node_n05_iter{iteration}. {resp['reasoning']}"))
-            if resp.get("error"):
-                new_messages.append(AIMessage(content=f"Node_n05_iter{iteration}. ERROR: {resp['error']}"))
-                raise RuntimeError(resp["error"])
-
-            # Parse the new response
-            iter_messages, iter_reasonings, iter_json = _parse_llm_resp(resp, node_id=f"n05_iter{iteration}")
+            resp, iter_messages, iter_reasonings, iter_json, iter_log = invoke_and_parse(None, None, mapper_model, messages=conversation, node_id=f"n05_iter{iteration}")
+            llm_logs.append(iter_log)
             new_messages.extend(iter_messages)
             new_reasonings.extend(iter_reasonings)
+
+            if resp.get("error"):
+                raise RuntimeError(resp["error"])
 
             # Update mapping_json with latest iteration results
             if isinstance(iter_json, dict):
@@ -1177,10 +1113,8 @@ def node_n06_validate_refine(state: AgentState) -> AgentState:
         sm = SystemMessage(content=VALIDATION_SYS_PROMPT)
         hm = HumanMessage(content=json.dumps({"relations": [validation_context]}, indent=2))
         
-        resp = _invoke_llm(sm, hm, validator_model)
-        _print_llm_metadata(resp)
-        llm_logs.append(_llm_log_entry(resp, f"n06_rel_{idx}"))
-        parse_messages, parse_reasonings, validation_json = _parse_llm_resp(resp, node_id=f"n06_rel_{idx}")
+        resp, parse_messages, parse_reasonings, validation_json, val_log = invoke_and_parse(sm, hm, validator_model, node_id=f"n06_rel_{idx}")
+        llm_logs.append(val_log)
         new_messages.extend(parse_messages)
         new_reasonings.extend(parse_reasonings)
 
@@ -1935,29 +1869,21 @@ app = graph.compile()
 # Utilities
 # -----------------------------------------------------------------------------
 
-diagram_path = Path(__file__).parents[2] / "static" / "graph_diagram.png"
-def save_graph_png(diagram_path):
-    with open(diagram_path, "wb") as f:
-        f.write(app.get_graph().draw_mermaid_png())
+DOC_DIR = Path(__file__).parents[2] / "doc"
+
+def save_graph_png():
+    DOC_DIR.mkdir(parents=True, exist_ok=True)
+    diagram_path = DOC_DIR / "graph_diagram.png"
+    diagram_path.write_bytes(app.get_graph().draw_mermaid_png())
+    print(f"Graph diagram saved to {diagram_path}")
+
+save_graph_png()
 
 # -----------------------------------------------------------------------------
 # MAIN (production harness with resume capability)
 # -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    #save_graph_png(diagram_path)
-
-    def print_stream(stream):
-        """Print LangGraph messages for monitoring."""
-        for s in stream:
-            try:
-                message = s.get("messages", [])
-                if message and len(message) > 0:
-                    last_msg = message[-1]
-                    if hasattr(last_msg, 'pretty_print'):
-                        last_msg.pretty_print()
-            except Exception:
-                pass
 
     processed_count = 0
     error_count = 0

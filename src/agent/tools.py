@@ -1,8 +1,5 @@
-from langchain_core.tools import InjectedToolArg
-from langgraph.prebuilt import InjectedState
 from langchain_core.tools import tool
 from langchain_core.documents import Document
-from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
 import json
 import os
@@ -12,30 +9,32 @@ from Bio import Entrez
 from pathlib import Path
 from dotenv import load_dotenv
 
+from adapters.chroma import build_ollama_embeddings
+from aliases import DISEASE_ALIASES, SPECIES_ALIASES, SPECIMEN_ALIASES
+
 load_dotenv()
 
 # Set default email for NCBI Entrez (required by NCBI API)
 Entrez.email = os.getenv("NCBI_EMAIL", "glycan.curator@example.com")
 Entrez.api_key = os.getenv("NCBI_API_KEY", None)
-#OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
 
 
 # ===========================
 # Initialize
 # ===========================
-embeddings = OllamaEmbeddings(model="bge-large:latest")
+embeddings = build_ollama_embeddings()
 
-VECTORSTORES_DIR = Path(__file__).parent / "vectorstores"
-DOID_DATA_PATH = VECTORSTORES_DIR / "disease_ontology_v2.txt"
-DOID_PERSIST_DIR = VECTORSTORES_DIR / "doid_vectorstore"
+WORKSPACE_DIR = Path(__file__).parents[2] / "data" / "workspace"
+DOID_DATA_PATH = WORKSPACE_DIR / "disease_ontology_v2.txt"
+DOID_PERSIST_DIR = WORKSPACE_DIR / "doid_vectorstore"
 DOID_COLLECTION = "disease_ontology"
 
-UBERON_DATA_PATH = VECTORSTORES_DIR / "uberon_terms.txt"
-UBERON_PERSIST_DIR = VECTORSTORES_DIR / "uberon_vectorstore"
+UBERON_DATA_PATH = WORKSPACE_DIR / "uberon_terms.txt"
+UBERON_PERSIST_DIR = WORKSPACE_DIR / "uberon_vectorstore"
 UBERON_COLLECTION = "uberon_ontology"
 
-GSD_DATA_PATH = VECTORSTORES_DIR / "gsd_terms.txt"
-GSD_PERSIST_DIR = VECTORSTORES_DIR / "gsd_vectorstore"
+GSD_DATA_PATH = WORKSPACE_DIR / "gsd_terms.txt"
+GSD_PERSIST_DIR = WORKSPACE_DIR / "gsd_vectorstore"
 GSD_COLLECTION = "glycan_structure_dictionary"
 
 # ===========================
@@ -64,7 +63,7 @@ def _init_doid_vectorstore():
     if _doid_vectorstore is not None:
         return
     
-    if not os.path.exists(DOID_DATA_PATH):
+    if not DOID_DATA_PATH.exists():
         raise FileNotFoundError(f"DOID data file not found: {DOID_DATA_PATH}")
     
     # Load data
@@ -91,10 +90,10 @@ def _init_doid_vectorstore():
     texts = [Document(page_content=line) for line in lines]
     
     # Check if vector store exists
-    os.makedirs(DOID_PERSIST_DIR, exist_ok=True)
-    if os.path.exists(DOID_PERSIST_DIR) and any(os.scandir(DOID_PERSIST_DIR)):
+    DOID_PERSIST_DIR.mkdir(parents=True, exist_ok=True)
+    if DOID_PERSIST_DIR.exists() and any(DOID_PERSIST_DIR.iterdir()):
         _doid_vectorstore = Chroma(
-            persist_directory=DOID_PERSIST_DIR,
+            persist_directory=str(DOID_PERSIST_DIR),
             collection_name=DOID_COLLECTION,
             embedding_function=embeddings,
         )
@@ -103,7 +102,7 @@ def _init_doid_vectorstore():
         _doid_vectorstore = Chroma.from_documents(
             documents=texts,
             embedding=embeddings,
-            persist_directory=DOID_PERSIST_DIR,
+            persist_directory=str(DOID_PERSIST_DIR),
             collection_name=DOID_COLLECTION,
         )
         print("Created DOID vector store.")
@@ -135,7 +134,7 @@ def _init_uberon_vectorstore():
     if _uberon_vectorstore is not None:
         return
     
-    if not os.path.exists(UBERON_DATA_PATH):
+    if not UBERON_DATA_PATH.exists():
         raise FileNotFoundError(f"Uberon data file not found: {UBERON_DATA_PATH}")
     
     # Load data
@@ -162,10 +161,10 @@ def _init_uberon_vectorstore():
     texts = [Document(page_content=line) for line in lines]
     
     # Check if vector store exists
-    os.makedirs(UBERON_PERSIST_DIR, exist_ok=True)
-    if os.path.exists(UBERON_PERSIST_DIR) and any(os.scandir(UBERON_PERSIST_DIR)):
+    UBERON_PERSIST_DIR.mkdir(parents=True, exist_ok=True)
+    if UBERON_PERSIST_DIR.exists() and any(UBERON_PERSIST_DIR.iterdir()):
         _uberon_vectorstore = Chroma(
-            persist_directory=UBERON_PERSIST_DIR,
+            persist_directory=str(UBERON_PERSIST_DIR),
             collection_name=UBERON_COLLECTION,
             embedding_function=embeddings,
         )
@@ -174,7 +173,7 @@ def _init_uberon_vectorstore():
         _uberon_vectorstore = Chroma.from_documents(
             documents=texts,
             embedding=embeddings,
-            persist_directory=UBERON_PERSIST_DIR,
+            persist_directory=str(UBERON_PERSIST_DIR),
             collection_name=UBERON_COLLECTION,
         )
         print("Created Uberon vector store.")
@@ -193,7 +192,7 @@ def _init_gsd_vectorstore():
     if _gsd_vectorstore is not None:
         return
     
-    if not os.path.exists(GSD_DATA_PATH):
+    if not GSD_DATA_PATH.exists():
         raise FileNotFoundError(f"GSD data file not found: {GSD_DATA_PATH}")
     
     # Load data
@@ -220,10 +219,10 @@ def _init_gsd_vectorstore():
     texts = [Document(page_content=line) for line in lines]
     
     # Check if vector store exists
-    os.makedirs(GSD_PERSIST_DIR, exist_ok=True)
-    if os.path.exists(GSD_PERSIST_DIR) and any(os.scandir(GSD_PERSIST_DIR)):
+    GSD_PERSIST_DIR.mkdir(parents=True, exist_ok=True)
+    if GSD_PERSIST_DIR.exists() and any(GSD_PERSIST_DIR.iterdir()):
         _gsd_vectorstore = Chroma(
-            persist_directory=GSD_PERSIST_DIR,
+            persist_directory=str(GSD_PERSIST_DIR),
             collection_name=GSD_COLLECTION,
             embedding_function=embeddings,
         )
@@ -232,7 +231,7 @@ def _init_gsd_vectorstore():
         _gsd_vectorstore = Chroma.from_documents(
             documents=texts,
             embedding=embeddings,
-            persist_directory=GSD_PERSIST_DIR,
+            persist_directory=str(GSD_PERSIST_DIR),
             collection_name=GSD_COLLECTION,
         )
         print("Created GSD vector store.")
@@ -240,14 +239,6 @@ def _init_gsd_vectorstore():
 # ===========================
 # Tool Functions
 # ===========================
-
-@tool
-def brave_search_tool(term: str) -> str:
-    """Fetch a short definition from Brave search"""
-    # Simulate fetching a definition from Brave search
-    definition = f"Definition of {term} from Brave search."
-    return definition
-
 
 @tool
 def onto_doid_tool(entities: List[str]) -> str:
@@ -280,8 +271,17 @@ def onto_doid_tool(entities: List[str]) -> str:
     
     for entity in entities:
         entity_lower = entity.strip().lower()
-        
-        # Step 1: Try exact match first
+
+        # Step 0: Check static alias cache
+        if entity_lower in DISEASE_ALIASES:
+            results.append({
+                "query": entity,
+                "match_type": "alias",
+                "result": DISEASE_ALIASES[entity_lower]
+            })
+            continue
+
+        # Step 1: Try exact match
         if entity_lower in _doid_exact_match_dict:
             results.append({
                 "query": entity,
@@ -289,7 +289,7 @@ def onto_doid_tool(entities: List[str]) -> str:
                 "result": _doid_exact_match_dict[entity]
             })
             continue
-        
+
         # Step 2: Fall back to embedding search (lazy init vectorstore)
         try:
             _init_doid_vectorstore()
@@ -432,8 +432,17 @@ def onto_uberon_tool(entities: List[str]) -> str:
     
     for entity in entities:
         entity_lower = entity.strip().lower()
-        
-        # Step 1: Try exact match first
+
+        # Step 0: Check static alias cache
+        if entity_lower in SPECIMEN_ALIASES:
+            results.append({
+                "query": entity,
+                "match_type": "alias",
+                "result": SPECIMEN_ALIASES[entity_lower]
+            })
+            continue
+
+        # Step 1: Try exact match
         if entity_lower in _uberon_exact_match_dict:
             results.append({
                 "query": entity,
@@ -441,7 +450,7 @@ def onto_uberon_tool(entities: List[str]) -> str:
                 "result": _uberon_exact_match_dict[entity]
             })
             continue
-        
+
         # Step 2: Fall back to embedding search
         try:
             retriever = _uberon_vectorstore.as_retriever(
@@ -655,19 +664,9 @@ def onto_taxonomy_tool(species_names: List[str]) -> str:
     for name in species_names:
         query_name = name.strip()
         output_str += f"{query_name}:\ntax_id\tscientific_name\tcommon_name\tincludes\tgenbank_common_name\n"
-        
-        ### Common species
-        query_name = name.strip()
-        output_str += f"{query_name}:\ntax_id\tscientific_name\tcommon_name\tincludes\tgenbank_common_name\n"
-        
-        ### Common species
-        name_human = ["human", "humans", "homo sapiens"]
-        name_mouse = ["mouse", "mice", "mus musculus"]
-        if query_name.lower in name_human:
-            output_str += "9606\tHomo sapiens\t(None)\t(None)\thuman"
-            continue
-        if query_name.lower in name_mouse:
-            output_str += "10090\tMus musculus\tmouse\tBalb/c mouse, LK3 transgenic mice, Mus sp. 129SV, nude mice, transgenic mice\thouse mouse"
+
+        if query_name.lower() in SPECIES_ALIASES:
+            output_str += SPECIES_ALIASES[query_name.lower()] + "\n\n"
             continue
         
         try:
@@ -709,16 +708,3 @@ def onto_taxonomy_tool(species_names: List[str]) -> str:
             output_str += f"Error fetching taxonomy data: {str(e)}\n\n"
     
     return output_str
-
-
-@tool
-def create_new_gsd_term_tool(data: str) -> str:
-    """Create a new glycan term in GSD."""
-    new_term_id = "GSD:0000000"
-    return new_term_id
-
-@tool
-def create_new_glycan_term_tool(data: str) -> str:
-    """Create a new glycan term."""
-    new_glycan_id = "GLY:0000000"
-    return new_glycan_id

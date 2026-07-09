@@ -2,6 +2,7 @@
 .DS_Store
 .env
 data/processed/curation/
+data/workspace/*_vectorstore/
 logs/
 scripts/temp_storage.py
 
