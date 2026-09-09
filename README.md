@@ -52,10 +52,11 @@ The workflow is implemented as a LangGraph state machine in `src/agent/graph.py`
 
 - abstract screening (`N01`)
 - optional full-text retrieval from PMC (`N02`)
-- NER and relation extraction (`N03/N04`)
-- ontology mapping with tool calls (`N05`)
-- validation/refinement and deduplication (`N06`)
-- evidence scoring (`N07`)
+- glycan NER (`N03/N03a`)
+- role-driven relation extraction (`N04/N04a`): identify biomarker role(s), then run
+  role-specific describe + structure prompts/schemas per role
+- deterministic ontology mapping (`N05`): exact/alias → semantic → bounded adjudication
+- role-aware validation/refinement and deduplication (`N06`)
 - batch JSONL export (`N08`)
 
 Core capabilities include:
@@ -173,11 +174,12 @@ The Slurm script loads an Ollama module, starts the Ollama server, and executes 
 |-- src
 |   `-- agent
 |       |-- graph.py                   # LangGraph pipeline (N01-N08)
-|       |-- prompts.py                 # System prompts
-|       |-- schemas.py                 # Input JSON schema
+|       |-- prompts.py                 # System prompts + per-role prompt builders
+|       |-- roles.py                   # Per-biomarker-role curation specs (from biomarker.md)
+|       |-- schemas.py                 # Input schema + per-role structure schemas
 |       |-- states.py                  # AgentState typed model
-|       |-- tools.py                   # Ontology + external lookup tools
-|       |-- utils.py                   # Retrieval/indexing/helpers
+|       |-- ontology.py                # Deterministic ontology resolvers (exact/alias/semantic)
+|       |-- utils.py                   # Retrieval/indexing/normalization helpers
 |       `-- vectorstores               # Local ontology resources/chroma stores
 `-- tests
 		|-- integration_tests
@@ -196,26 +198,32 @@ If PMCID is available and full text is needed, fetches and parses PMC JATS XML.
 
 3. `N03/N03a` Glycan NER
 Extracts glycan structure terms and sentence evidence from full text or abstract mode.
+Excludes umbrella terms and undecipherable peak labels (e.g., `GP20`, `IGP33`), and keeps the
+glycan term pure (no protein/tissue names; bare adjectives become `<adjective> glycan`).
 
-4. `N04/N04a` Relation Extraction
-Extracts glycan-disease candidate relations with directionality, specimen/species, methods, and metrics.
+4. `N04/N04a` Relation Extraction (role-driven)
+Three simple steps so each call stays within the small model's limits:
+- role identification: which of the 7 BEST biomarker roles the article supports, and the glycans for each;
+- per-role *describe*: role-specific guided questions + definition + the role's required/optional fields;
+- per-role *structure*: grammar-constrained JSON with that role's schema.
+Roles are a non-exclusive list, so a glycan playing several roles yields one relation with a role
+list and role-keyed annotations. Role specs live in `src/agent/roles.py` (from `biomarker.md`).
 
-5. `N05_OntologyMapper`
-Maps entities via tools and vectorstores:
-- GSD (`onto_gsd_tool`)
-- DOID (`onto_doid_tool`)
-- Uberon/CL (`onto_uberon_tool`)
-- Cellosaurus API (`onto_cellline_tool`)
-- NCBI Taxonomy (`onto_taxonomy_tool`)
-- UniProt (`onto_protein_tool`)
+5. `N05_OntologyMapper` (deterministic)
+No LLM tool-calling loop. Each entity is resolved by exact/alias lookup, then semantic search
+(top-k > 5); only semantic-only hits go to a single bounded adjudication call. Type-aware routing:
+- glycan → GSD (exact + semantic only; **no fuzzy match**)
+- disease → DOID
+- specimen → UBERON/CL (tissue/organ/fluid/circulating cell) or Cellosaurus (cell line)
+- species → NCBI Taxonomy
+- protein → UniProt (single gene) or Complex Portal (complex)
+A match is never forced; entities with no true equivalent stay unmapped.
 
 6. `N06_ValidateRefine`
-Validates evidence consistency, applies fix/split/reject decisions, and deduplicates relations.
+Role-aware validation: checks the evidence supports the assigned role and its required fields,
+applies fix/split/reject, and deduplicates relations.
 
-7. `N07_EvidenceScorer`
-Assigns quantitative evidence scores and labels (`weak`, `moderate`, `strong`).
-
-8. `N08_Exporter`
+7. `N08_Exporter`
 Writes batched JSONL artifacts to `data/processed/curation/<run_name>/`.
 
 ### Input Preparation
@@ -299,9 +307,10 @@ Relation objects include:
 - glycan fields: `glycan_name`, `glycan_mapped_name`, `glycan_id`
 - disease fields: `disease_name`, `disease_mapped_name`, `disease_id`
 - context: `specimen`, `species_name/species_id`, `protein_name/protein_id`
-- extraction metadata: `biomarker_type`, `direction`, `metrics`, `method_names`
+- role: `biomarker_role` (list), `role_annotations` (role-keyed required/optional fields),
+  `is_multicomponent`
+- extraction metadata: `direction`, `metrics`, `method_names`, `negated_or_hedged`
 - evidence payload: sentence text/index/section
-- quality scoring: `evidence_score`, `evidence_label`, `score_breakdown`
 
 Example relation snippet:
 
@@ -310,23 +319,27 @@ Example relation snippet:
 	"glycan_name": "core fucosylation",
 	"glycan_mapped_name": "core fucosylated N-glycan",
 	"glycan_id": "GSD:...",
-	"disease_name": "lung cancer",
-	"disease_mapped_name": "lung cancer",
-	"disease_id": "DOID:1324",
+	"disease_name": "hepatocellular carcinoma",
+	"disease_mapped_name": "hepatocellular carcinoma",
+	"disease_id": "DOID:684",
 	"specimen": {
 		"original": "serum",
-		"mapped_name": "serum",
+		"mapped_name": "blood serum",
 		"mapped_id": "UBERON:0001977",
-		"category": "fluid",
+		"category": "tissue",
 		"ontology": "UBERON"
 	},
+	"biomarker_role": ["diagnostic", "monitoring"],
+	"role_annotations": {
+		"diagnostic": {"target_condition": "hepatocellular carcinoma", "diagnostic_task": "presence_absence", "comparison_group": "healthy controls"},
+		"monitoring": {"repeated_measurement": "serial serum sampling", "monitored_entity": "tumor burden", "change_direction": "rising"}
+	},
+	"is_multicomponent": false,
 	"direction": "increased",
 	"metrics": [{"name": "AUC", "value": 0.84, "raw": "AUC 0.84"}],
 	"evidence_sentences": [
 		{"sentence": "...", "section": "ABSTRACT", "sentence_index": 7}
-	],
-	"evidence_score": 0.72,
-	"evidence_label": "strong"
+	]
 }
 ```
 
