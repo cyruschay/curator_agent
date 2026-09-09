@@ -1,33 +1,36 @@
-# "deepseek-r1:14b" "qwen3-vl:30b-a3b-thinking" "nemotron-3-nano:30b" "gpt-oss:20b" "qwen3:30b"
+# Tested: "qwen3-vl:30b-a3b-thinking", "nemotron-3-nano:30b", "gpt-oss:20b", "qwen3:30b"
 ollama_models:
-  reasoning_model: "gpt-oss:20b"
-  mini_model: "gpt-oss:20b"
-  nano_model: "gpt-oss:20b"
+  reasoning_model: "gpt-oss:20b" # default reasoning model for curation and QC
+  mini_model: "gpt-oss:20b" # summarizer of section texts
+  nano_model: "gpt-oss:20b" # selector of section titles to summarize
 
 ollama_params:
   reasoning_model:
     reasoning: "medium"
+    num_ctx: 20000 # keep large
     num_predict: 20000
-    temperature: 0.5
-    top_p: 0.9
-    top_k: 40
-    repeat_penalty: 1.4
-    repeat_last_n: 20000
+    temperature: 0.2
+    top_p: 0.7
+    top_k: 15
+    repeat_penalty: 1.15
+    repeat_last_n: 20000 # value must equal num_predict to prevent reasoning loops
     seed: 2026
     extra: {}
   mini_model:
     reasoning: "medium"
+    num_ctx: 20000
     num_predict: 8192
     temperature: 0.4
     seed: 2026
     extra: {}
   nano_model:
     reasoning: "low"
+    num_ctx: 8192
     num_predict: 2048
     temperature: 0.2
     seed: 2026
     extra: {}
 
 paths:
-  input_abstracts: "abstracts_0001-2000.jsonl"
-  curation_output_dir: "gpt-oss-20b-medium-0.5-0.9-40-1.40-20000-0001-2000"
+  input_abstracts: "abstracts_full.jsonl" # see data/raw/abstracts/
+  curation_output_dir: "gpt-oss-20b-per-role-combined-low-full-4787" # data/processed/curation/
