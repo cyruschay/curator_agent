@@ -230,6 +230,43 @@ def _print_msg(msg_type: str = "INFO", content: str = "") -> None:
     current_time = datetime.now().strftime("%H:%M:%S")
     print(f"{current_time} {msg_type} - {content}")
 
+
+import unicodedata
+
+# Typographic characters the small model emits (aggravated by high repeat_penalty) that we
+# canonicalize. Applied ONLY to parsed string values — never to the raw JSON envelope, because
+# rewriting smart quotes in the envelope corrupts JSON string delimiters and breaks json.loads.
+_SMART_QUOTE_MAP = {
+    "‘": "'", "’": "'", "‚": "'", "′": "'",
+    "“": '"', "”": '"', "„": '"', "″": '"',
+    " ": " ",  # non-breaking space
+}
+_ZERO_WIDTH = dict.fromkeys(map(ord, "​‌‍﻿"), None)
+
+
+def _normalize_str(s: str) -> str:
+    s = unicodedata.normalize("NFC", s)
+    s = s.translate(_ZERO_WIDTH)
+    for bad, good in _SMART_QUOTE_MAP.items():
+        s = s.replace(bad, good)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def normalize_parsed_strings(obj: Any) -> Any:
+    """Recursively normalize string leaves of an ALREADY-PARSED JSON object.
+
+    Must run after json parsing: normalizing the raw text first turns typographic quotes into
+    ASCII quotes and corrupts the JSON envelope.
+    """
+    if isinstance(obj, str):
+        return _normalize_str(obj)
+    if isinstance(obj, list):
+        return [normalize_parsed_strings(v) for v in obj]
+    if isinstance(obj, dict):
+        return {k: normalize_parsed_strings(v) for k, v in obj.items()}
+    return obj
+
 def _norm(s: Optional[str]) -> str:
     return (s or "").strip()
 
@@ -398,6 +435,7 @@ def invoke_and_parse(
     *,
     messages: Optional[Sequence[BaseMessage]] = None,
     node_id: str = "?",
+    expect_json: bool = True,
 ) -> Tuple[Dict[str, Any], List[BaseMessage], List[BaseMessage], Any, Dict[str, Any]]:
     """Invoke LLM, log metadata, parse JSON — replaces the 4-line boilerplate.
 
@@ -445,17 +483,22 @@ def invoke_and_parse(
     if resp["truncated"]:
         new_messages.append(AIMessage(content=f"Node_{node_id}. WARN: Response may be truncated (done_reason=length)."))
 
-    if resp.get("output"):
+    if resp.get("output") and expect_json:
         raw_output = resp["output"].strip()
         try:
             output_json = _extract_json(raw_output)
+            # Normalize AFTER parsing so typographic quotes never corrupt the JSON envelope.
+            output_json = normalize_parsed_strings(output_json)
         except Exception as exc:
             new_messages.append(
                 AIMessage(content=f"Node_{node_id}. ERROR: LLM output is not valid JSON. {exc}")
             )
             output_json = {}
-    else:
-        if not resp.get("error"):
+    elif not resp.get("output"):
+        # Only an error when parseable content was actually required. Free-text callers
+        # (expect_json=False, i.e. the describe step) handle an empty final channel via the
+        # reasoning fallback, so an empty output there is not an error.
+        if expect_json and not resp.get("error"):
             new_messages.append(AIMessage(content=f"Node_{node_id}. ERROR: Empty LLM content output."))
 
     llm_log: Dict[str, Any] = {

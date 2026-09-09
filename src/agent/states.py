@@ -115,7 +115,9 @@ class Metric(TypedDict, total=False):
 class RelationCandidate(TypedDict, total=False):
     glycan: str                              # surface or provisional norm_id
     glycan_metadata: Optional[str]           # ratio info, lectin binding, descriptors (big, highly, etc.)
-    biomarker_type: Optional[str]            # diagnostic, prognostic, predictive, monitoring, etc.
+    biomarker_role: List[str]                # non-exclusive BEST roles, e.g. ["diagnostic","monitoring"]
+    role_annotations: Dict[str, Any]         # role-specific fields (keys per roles.ROLE_SPECS)
+    is_multicomponent: bool                  # part of a multi-biomarker panel/score
     change: Direction                        # "increased"/"decreased"/...
     disease: str                             # surface or provisional norm_id
     disease_annotation: Optional[str]        # disease stage, grade, subtype/severity context
@@ -161,7 +163,9 @@ class MappedRelation(TypedDict, total=False):
     protein_name: Optional[str]                  # original protein text
     protein_mapped_name: Optional[str]           # canonical protein label
     protein_id: Optional[str]                    # UniProt accession if protein specified
-    biomarker_type: Optional[str]                # diagnostic, prognostic, predictive, monitoring, etc.
+    biomarker_role: List[str]                    # non-exclusive BEST roles
+    role_annotations: Dict[str, Any]             # role-specific fields (keys per roles.ROLE_SPECS)
+    is_multicomponent: bool                      # part of a multi-biomarker panel/score
     direction: Direction
     evidence_locators: List[SentenceIndexed]
     metrics: List[Metric]
@@ -253,6 +257,10 @@ class AgentState(TypedDict, total=False):
 
     # LLM tool calls + metadata logs
     llm_logs: Annotated[List[LLMLog], operator.add]
+
+    # Which ontology lookup tier answered each resolve, per entity type, e.g.
+    # {"glycan": {"exact": 4, "semantic": 1}, "disease": {"alias": 2}}
+    ontology_match_stats: Annotated[Dict[str, Dict[str, int]], operator.or_]
 
     # Internal loop/retry counter for N06 bounded loop
     loop_step: Annotated[int, operator.add]
